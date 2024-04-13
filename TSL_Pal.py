@@ -4,38 +4,51 @@ import statistics
 import math
 import numpy as np
 
-
+#Takes user-submitted values for starting stats
+import subprocess
+output = subprocess.check_output(["python", "TSL_Pal_Config.py"]).decode().splitlines()
+stat_atk = float(output[0])
+stat_chc = float(output[1])
+stat_chd = float(output[2])
+stat_cdr = float(output[3])
+stat_reso = int(output[4])
+sim_dur = int(output[5])
+sim_iter = int(output[6])
 '''
-stat_atk = int(input("Attack?: "))
-stat_chc = float(input("Crit Hit Chance?: "))
-stat_chd = float(input("Crit Damage?: "))
-stat_cdr = float(input("Cooldown?: "))
-stat_reso = 1000 * (input("Begin with Inscription?: (Y/N)  ").upper()=="Y")
-sim_dur = int(input("Simulation Duration?: "))
-sim_iter = int(input("# of times to simulate?: "))
+#loads Talent Point calculator
+output = subprocess.check_output(["python", "TSL_Pal_Config_Talents.py"]).decode().splitlines()
+talent_index = output
 '''
-
 #load talents- "t-row-column"
 #first talent point is dummy value
-talent_index = [0,3,3,0,3,3,0,0,1,0,3,0,3,2,0,3,0,2,2,2,0,2]
-
+talent_index = [0,1,3,\
+                1,3,3,\
+                0,3,1,\
+                0,0,\
+                0,3,2,\
+                0,3,\
+                0,2,\
+                0,2,\
+                3,2]
+#Greedy Solo DPS Talents
+#talent_index = [0,1,3,1,3,3,0,3,1,0,0,0,3,2,0,3,0,2,0,2,3,2]
 if sum(talent_index)>32:
-    print("Too many Talent Points.")
+    print(sum(talent_index)-32," too many Talent Points.")
     quit()
 elif sum(talent_index)<32:
-    print("Missing Talent Points.")
+    print("Missing ",32-sum(talent_index)," Talent Points.")
     quit()
 elif sum(talent_index)==32:
     print("Talent Points Loaded Succesfully.\n")
-
+'''
 stat_atk = 700
-stat_chc = 0.43 + (talent_index[3]*0.015)
+stat_chc = 0.43
 stat_chd = 1.65
 stat_cdr = 0.19
 stat_reso = 1000
 sim_dur = 110
 sim_iter = 100
-
+'''
 results,sim_res_gs,sim_res_jt, \
     sim_res_js,sim_res_eq,sim_res_aa,sim_res_all, \
     sim_res_dps = [],[],[],[],[],[],[],[]
@@ -110,7 +123,7 @@ def Sim_run(until):
                 raid_atk = 0
                 raid_chc = 0
             #Tracks Trial of Rage and other buffs
-            fstat_chc = stat_chc + tor_chc + raid_chc
+            fstat_chc = stat_chc + tor_chc + raid_chc + (talent_index[3]*0.015)
             fstat_gcd = gcd - tor_haste
             fstat_atk = stat_atk + tor_atk + raid_atk
             #resets damage output of skills
@@ -274,6 +287,8 @@ def Sim_run(until):
                     Verdict = 3
                 else:
                     Verdict = random.randint(1,2)
+                if Verdict == 2 or 3:
+                    cd_js -= talent_index[15]
             #Auto attack always applies every GCD, does not incur GCD timer
             if cd_aa <=0:
                 cd_aa = 1*(1-stat_cdr)
@@ -332,8 +347,6 @@ def Sim_run(until):
                 sim_dmg_aa.append(int(dmg_aa * aa_mod * (1+((reso_dur>0)*stat_reso*0.0007))))
                 sim_dmg_all.append(sim_dmg_aa[-1])
                 aa_mod = 1                    
-            #Tracks all damage
-            #sim_dmg_all = sim_dmg_gs+sim_dmg_jt+sim_dmg_js+sim_dmg_eq+sim_dmg_aa
             #Increments cooldowns and buffs
             cd_gs -= increment
             cd_jt -= increment
@@ -346,6 +359,7 @@ def Sim_run(until):
             eq_dur -= increment
             reso_dur -= increment
             raid_buff_dur -= increment
+
         #Tracks total GS/JT/JS/EQ/AA damage from each sim
         sim_res_gs.append(int(sum(sim_dmg_gs)))
         sim_res_jt.append(int(sum(sim_dmg_jt)))
