@@ -14,6 +14,7 @@ stat_cdr = float(output[3])
 stat_reso = int(output[4])
 sim_dur = int(output[5])
 sim_iter = int(output[6])
+ext_raid_buff = output[7]
 '''
 #loads Talent Point calculator
 output = subprocess.check_output(["python", "TSL_Pal_Config_Talents.py"]).decode().splitlines()
@@ -40,6 +41,8 @@ elif sum(talent_index)<32:
     quit()
 elif sum(talent_index)==32:
     print("Talent Points Loaded Succesfully.\n")
+
+#Default Stats w/o user import
 '''
 stat_atk = 700
 stat_chc = 0.43
@@ -66,9 +69,9 @@ def Sim_run(until):
         tor_atk,tor_chc,tor_haste =(0,0,0)
         gs_mod,jt_mod,js_mod,eq_mod,aa_mod=(1,1,1,1,1)
         #Raid buffs
-        cd_raid_buff,raid_chc,raid_atk = (0,0,0)
+        cd_raid_buff,raid_buff_dur,raid_chc,raid_atk = (0,0,0,0)
         #1000 = starts with resonance
-        reso_res, res_count = (1000,0)
+        reso_res, res_count = (0,0)
 
         duration = sim_dur
         
@@ -113,13 +116,13 @@ def Sim_run(until):
                 tor_chc = 0
                 tor_haste = 0
             #Activates Raid Buffs, sets duration, crit chance and cooldown
-            if cd_raid_buff <= 0:
+            if cd_raid_buff <= 0 and ext_raid_buff in [1,"Yes"]:
                 cd_raid_buff = 120  * (1-stat_cdr)
                 raid_buff_dur = 12
-                raid_atk = 240 + (stat_atk * 0.12)
-                raid_chc = 0.12
+                raid_atk = (63*6*0.5) + ((stat_atk * 0.04)*6*0.5)
+                raid_chc = (0.04*6*0.5)
             #disable Raid buffs
-            if raid_buff_dur <= 0:    
+            if raid_buff_dur <= 0 and ext_raid_buff in [1,"Yes"]:
                 raid_atk = 0
                 raid_chc = 0
             #Tracks Trial of Rage and other buffs
@@ -288,7 +291,7 @@ def Sim_run(until):
                 else:
                     Verdict = random.randint(1,2)
                 if Verdict == 2 or 3:
-                    cd_js -= talent_index[15]
+                    cd_js -= talent_index[15]   
             #Auto attack always applies every GCD, does not incur GCD timer
             if cd_aa <=0:
                 cd_aa = 1*(1-stat_cdr)
@@ -358,6 +361,7 @@ def Sim_run(until):
             a_gcd -= increment
             eq_dur -= increment
             reso_dur -= increment
+            cd_raid_buff -= increment
             raid_buff_dur -= increment
 
         #Tracks total GS/JT/JS/EQ/AA damage from each sim
