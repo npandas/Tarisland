@@ -14,3 +14,7 @@ Currently has arbitrary raid buffs with 120 sec CD
                 raid_buff_dur = 12
                 raid_atk = 240 + (stat_atk * 0.12)
                 raid_chc = 0.12
+
+Missing stacking Inscription Echos buff that converts to Echo of Destiny.
+Missing Special Aptitude lines. (Unsure of a clean way to allow user-input as there are 25+ SA lines.)
+    May just have User input total +dmg mods for each skill. TBD
