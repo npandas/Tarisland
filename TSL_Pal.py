@@ -71,7 +71,7 @@ def Sim_run(until):
         #Raid buffs
         cd_raid_buff,raid_buff_dur,raid_chc,raid_atk = (0,0,0,0)
         #1000 = starts with resonance
-        reso_res, res_count = (0,0)
+        pVerdict, verdict_bonus,reso_res, res_count = (0,0,0,0)
 
         duration = sim_dur
         
@@ -104,6 +104,11 @@ def Sim_run(until):
             if cd_gs <= 0:
                 gs_ct += 1
                 cd_gs = 3*(1-stat_cdr)
+            #Grants buff based on Glory Judgement consecutive procs
+            if pVerdict != 0 and pVerdict == Verdict:
+                verdict_bonus = 1
+            elif pVerdict != 0 and pVerdict != Verdict:
+                verdict_bonus = 2
             #Activates Trial of Rage, sets duration, crit chance and cooldown
             if cd_tor <= 0:
                 cd_tor = (120 - (15 * talent_index[19])) * (1-stat_cdr)
@@ -126,7 +131,8 @@ def Sim_run(until):
                 raid_atk = 0
                 raid_chc = 0
             #Tracks Trial of Rage and other buffs
-            fstat_chc = stat_chc + tor_chc + raid_chc + (talent_index[3]*0.015)
+            fstat_chc = stat_chc + tor_chc + raid_chc + (talent_index[3]*0.015) +\
+                  ((verdict_bonus==1)*talent_index[12]*0.1)
             fstat_gcd = gcd - tor_haste
             fstat_atk = stat_atk + tor_atk + raid_atk
             #resets damage output of skills
@@ -155,6 +161,7 @@ def Sim_run(until):
                     #EQ grants random Verdict, prioritizes skill w/o Verdict
                     if random.randint(1,100)<=math.floor(talent_index[7]*33.4):
                         if Verdict == 1 or 2:
+                            pVerdict = 3- Verdict
                             Verdict = 3
                         else:
                             Verdict = random.randint(1,2)
@@ -303,9 +310,9 @@ def Sim_run(until):
             if dmg_gs!=0:
                 #GS Talent Bonus
                 gs_mod *= 1 + (talent_index[1] * 0.05)
-                #JS Bonus, JS Crit Bonus, EQ Bonus
+                #JS Bonus, JS Crit Bonus, EQ Bonus, Verdict Bonus
                 gs_mod *= (1+(js_bonus1 * talent_index[5] * 0.04)) * (1+(js_bonus2 * talent_index[13] * 0.05))\
-                        * (1+((eq_dur>0) * talent_index[17] * 0.07))
+                        * (1+((eq_dur>0) * talent_index[17] * 0.07)) * (1+((verdict_bonus==2)*talent_index[12]*0.12))
                 sim_dmg_gs.append(int(dmg_gs * gs_mod * (1+((reso_dur>0)*stat_reso*0.0007))))
                 sim_dmg_all.append(sim_dmg_gs[-1])
                 gs_mod = 1
@@ -313,9 +320,9 @@ def Sim_run(until):
                 js_bonus2 = 0
             #Tallies JT damage and consume JS bonus damage
             if dmg_jt!=0:
-                #JS Bonus, JS Crit Bonus, EQ Bonus
+                #JS Bonus, JS Crit Bonus, EQ Bonus, Verdict Bonus
                 jt_mod *= (1+(js_bonus1 * talent_index[5] * 0.04)) * (1+(js_bonus2 * talent_index[13] * 0.05))\
-                        * (1+((eq_dur>0) * talent_index[17] * 0.07))
+                        * (1+((eq_dur>0) * talent_index[17] * 0.07)) * (1+((verdict_bonus==2)*talent_index[12]*0.12))
                 sim_dmg_jt.append(int(dmg_jt * jt_mod * (1+((reso_dur>0)*stat_reso*0.0007))))
                 sim_dmg_all.append(sim_dmg_jt[-1])
                 jt_mod = 1
@@ -325,9 +332,9 @@ def Sim_run(until):
             if dmg_js!=0:
                 #JS Talent Bonus
                 js_mod *= 1 + (talent_index[15] * 0.04)
-                #JS Bonus, JS Crit Bonus, EQ Bonus
+                #JS Bonus, JS Crit Bonus, EQ Bonus, Verdict Bonus
                 js_mod *= (1+(js_bonus1 * talent_index[5] * 0.04)) * (1+(js_bonus2 * talent_index[13] * 0.05))\
-                        * (1+((eq_dur>0) * talent_index[17] * 0.07))
+                        * (1+((eq_dur>0) * talent_index[17] * 0.07)) * (1+((verdict_bonus==2)*talent_index[12]*0.12))
                 sim_dmg_js.append(int(dmg_js * js_mod * (1+((reso_dur>0)*stat_reso*0.0007))))
                 sim_dmg_all.append(sim_dmg_js[-1])
                 js_mod = 1
@@ -335,8 +342,9 @@ def Sim_run(until):
                 js_bonus2 = 0
             #Tallies EQ damage and consume JS bonus damage
             if dmg_eq!=0:
-                #JS Bonus, JS Crit Bonus, [Impossible to get EQ bonus w/o 87% CDR]
-                eq_mod *= (1+(js_bonus1 * talent_index[5] * 0.04)) * (1+(js_bonus2 * talent_index[13] * 0.05))
+                #JS Bonus, JS Crit Bonus, [Impossible to get EQ bonus w/o 87% CDR], Verdict Bonus
+                eq_mod *= (1+(js_bonus1 * talent_index[5] * 0.04)) * (1+(js_bonus2 * talent_index[13] * 0.05))\
+                        * (1+((verdict_bonus==2)*talent_index[12]*0.12))
                 sim_dmg_eq.append(int(dmg_eq * eq_mod * (1+((reso_dur>0)*stat_reso*0.0007))))
                 sim_dmg_all.append(sim_dmg_eq[-1])
                 eq_mod = 1
@@ -349,7 +357,7 @@ def Sim_run(until):
                 tor_haste += (0.0125 * talent_index[21])
                 sim_dmg_aa.append(int(dmg_aa * aa_mod * (1+((reso_dur>0)*stat_reso*0.0007))))
                 sim_dmg_all.append(sim_dmg_aa[-1])
-                aa_mod = 1                    
+                aa_mod = 1                
             #Increments cooldowns and buffs
             cd_gs -= increment
             cd_jt -= increment
@@ -390,18 +398,24 @@ Sim_run(sim_iter)
 print(f"{1-stat_cdr:,.3f} GCD time          ")   
 print(f"{sim_iter:,.0f} Simulations")
 print(f"{sim_dur:,.0f} Second Fight Duration\n")
-print(" Damage Stats   Min, 25%, 50%, 75%, Max")
 
-# if no values in list, skips quartile 
-    #common with short fight durations
-print("  GS  Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_res_gs, sim_res_gs_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
-print("  JT  Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_res_jt, sim_res_jt_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
-print("  JS  Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_res_js, sim_res_js_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
-print("  EQ  Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_res_eq, sim_res_eq_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
-print("  AA  Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_res_aa, sim_res_aa_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
-print("Total Damage: ",np.quantile(sim_res_all,[0,0.25,0.50,0.75,1.00],method="nearest"))
-print("  Avg.   DPS: ",np.quantile(sim_res_dps,[0,0.25,0.50,0.75,1.00],method="nearest"))
+#shows +/- Damage capturing 90% of damage range
+def dmg_spread(x,y=None,a=0.5,b=0.05,c=0.95):
+    if y is None:
+        stats_dmg = np.quantile(x,[a,b,c],method="nearest")
+    else:
+        stats_dmg = np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(x,y)],[a,b,c],method="nearest")
+    return "{:,.0f} +/- {:,.0f}".format(stats_dmg[0], (stats_dmg[2] - stats_dmg[1]) / 2)
 
+print(" Damage Stats  Damage (95% Spread)")
+print("   GS Damage: ",dmg_spread(sim_res_gs,sim_res_gs_ct,0.5,0.05,0.95))
+print("   JT Damage: ",dmg_spread(sim_res_jt,sim_res_jt_ct,0.5,0.05,0.95))
+print("   JS Damage: ",dmg_spread(sim_res_js,sim_res_jt_ct,0.5,0.05,0.95))
+print("   EQ Damage: ",dmg_spread(sim_res_eq,sim_res_eq_ct,0.5,0.05,0.95))
+print("Total Damage: ",dmg_spread(sim_res_all,None,0.5,0.05,0.95))
+print("Avg. Sim Dmg: ",dmg_spread(sim_res_dps,None,0.5,0.05,0.95))
+
+#To check Skill Cast Frequency
 '''
 print("# of GS Hits: ",sim_res_gs_ct)
 print("# of JT Hits: ",sim_res_jt_ct)
@@ -409,4 +423,16 @@ print("# of JS Hits: ",sim_res_js_ct)
 print("# of EQ Hits: ",sim_res_eq_ct)
 print("# of AA Hits: ",sim_res_aa_ct)
 print("# of inscription: ",res_act_ct)
+'''
+# if no values in list, skips quartile, common with short fight durations
+# Shows more detailed statistics
+'''
+print(" Damage Stats   Min, 25%, 50%, 75%, Max")
+print("   GS Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_res_gs, sim_res_gs_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
+print("   JT Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_res_jt, sim_res_jt_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
+print("   JS Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_res_js, sim_res_js_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
+print("   EQ Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_res_eq, sim_res_eq_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
+print("   AA Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_res_aa, sim_res_aa_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
+print("Total Damage: ",np.quantile(sim_res_all,[0,0.25,0.50,0.75,1.00],method="nearest"))
+print("Avg. Sim DPS: ",np.quantile(sim_res_dps,[0,0.25,0.50,0.75,1.00],method="nearest"))
 '''
