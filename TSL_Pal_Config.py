@@ -15,6 +15,11 @@ def submit_values():
             ext_raid_buff = int(ext_raid_buff)
         elif isinstance(ext_raid_buff, str):
             ext_raid_buff = ext_raid_buff.title()
+        inscription_start = entries[8].get()
+        if inscription_start.isdigit():
+            inscription_start = int(inscription_start)
+        elif isinstance(inscription_start, str):
+            inscription_start = inscription_start.title()
 
     except ValueError:
         messagebox.showerror("Error", "Please enter valid numerical values.")
@@ -28,6 +33,7 @@ def submit_values():
     print(sim_dur)
     print(sim_iter)
     print(ext_raid_buff)
+    print(inscription_start)
 
 # Create main window
 root = tk.Tk()
@@ -35,10 +41,12 @@ root.title("Userform")
 
 # Default values
 default_values = {'Attack': 700, 'Crit. Chance': 0.42, 'Crit. Damage': 1.65, \
-                  'Cooldown': 0.19, 'Resonance': 1000, 'Fight Dur.': 90, '# of Sims': 100, 'External Raid Buffs': "Yes"}
+                  'Cooldown': 0.19, 'Resonance': 1000, 'Fight Dur.': 90, '# of Sims': 100, \
+                  'External Raid Buffs': "Yes", 'Start w/ Inscription': "Yes"}
 
 # Create labels and entry fields for each variable with default values
-labels = ['Attack', 'Crit. Chance', 'Crit. Damage', 'Cooldown', 'Resonance', 'Fight Dur.', '# of Sims', 'External Raid Buffs']
+labels = ['Attack', 'Crit. Chance', 'Crit. Damage', 'Cooldown', 'Resonance', \
+          'Fight Dur.', '# of Sims', 'External Raid Buffs', 'Start w/ Inscription']
 entries = []
 
 for i, label_text in enumerate(labels):

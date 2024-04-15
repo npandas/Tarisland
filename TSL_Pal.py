@@ -1,11 +1,10 @@
 #import modules
-import random
-import statistics
-import math
-import numpy as np
+import random       #RNG generation for crits and procs
+import math         #for math.floor() for a few calculations
+import numpy as np  #allows us to get quartile results, e.g., top 10%
+import subprocess   #in order to incorporate other scripts
 
 #Takes user-submitted values for starting stats
-import subprocess
 output = subprocess.check_output(["python", "TSL_Pal_Config.py"]).decode().splitlines()
 stat_atk = float(output[0])
 stat_chc = float(output[1])
@@ -15,24 +14,24 @@ stat_reso = int(output[4])
 sim_dur = int(output[5])
 sim_iter = int(output[6])
 ext_raid_buff = output[7]
-'''
-#loads Talent Point calculator
-output = subprocess.check_output(["python", "TSL_Pal_Config_Talents.py"]).decode().splitlines()
-talent_index = output
-'''
-#load talents- "t-row-column"
-#first talent point is dummy value
-talent_index = [0,1,3,\
-                1,3,3,\
-                0,3,1,\
-                0,0,\
-                0,3,2,\
-                0,3,\
-                0,2,\
-                0,2,\
-                3,2]
-#Greedy Solo DPS Talents
+inscription_start = output[7]
+#Establish starting resonance meter
+if inscription_start in [1,"Yes"]:
+    inscription_start = 1000
+else:
+    inscription_start = 0
+#Takes user-submitted talent points
+talent_index = [0]
+output = subprocess.check_output(["python", "TSL_Pal_Config_Talents.py"]).decode()
+#output is a string even though the original script provided integers??
+for x in output:
+    if x.isdigit():
+        talent_index.append(int(x))
+
+#Reference Solo DPS Talents
 #talent_index = [0,1,3,1,3,3,0,3,1,0,0,0,3,2,0,3,0,2,0,2,3,2]
+
+#Cancels script if talents are incorrect
 if sum(talent_index)>32:
     print(sum(talent_index)-32," too many Talent Points.")
     quit()
@@ -52,33 +51,38 @@ stat_reso = 1000
 sim_dur = 110
 sim_iter = 100
 '''
-results,sim_res_gs,sim_res_jt, \
-    sim_res_js,sim_res_eq,sim_res_aa,sim_res_all, \
-    sim_res_dps = [],[],[],[],[],[],[],[]
-
-sim_res_gs_ct,sim_res_jt_ct,sim_res_js_ct,sim_res_eq_ct,sim_res_aa_ct = [],[],[],[],[]
-res_act_ct = []
+#Initialize Lists Recording every simulation iteration statistics
+sim_rec_gs,sim_rec_jt,sim_rec_js,sim_rec_eq,sim_rec_aa,sim_rec_all,sim_rec_dps = [],[],[],[],[],[],[]
+sim_rec_gs_ct,sim_rec_jt_ct,sim_rec_js_ct,sim_rec_eq_ct,sim_rec_aa_ct = [],[],[],[],[]
+sim_rec_res_ct = []
 
 def Sim_run(until):
 
     for i in range(until):
-        #define variables, \ to add line breaks
-        cd_gs,cd_jt,cd_js,cd_eq,PoG,Verdict,cd_aa,cd_tor,tor_dur,tor_haste=(0,0,0,0,0,0,0,0,0,0)
-        js_bonus1,js_bonus2,gs_crit_ct,eq_dur,reso_dur = (0,0,0,0,0) 
-        gcd,a_gcd,jt_ct,gs_ct=(1-stat_cdr,1-stat_cdr,2,2)
-        tor_atk,tor_chc,tor_haste =(0,0,0)
+        #define variables
+        cd_gs,cd_jt,cd_js,cd_eq,cd_aa=(0,0,0,0,0)
+        #Tracks JS bonuses if talented, GS crit mod% counter, and EQ dmg% buff
+        js_bonus1,js_bonus2,gs_crit_ct,eq_dur = (0,0,0,0)
+        #Set charges of GS and JT (if talented)
+        gs_ct,jt_ct = (2,talent_index[8]+1)
+        #GCD based on CDR and adjusted GCD for haste effects 
+        gcd,a_gcd=(1-stat_cdr,1-stat_cdr)
+        #Trial of Rage variables
+        tor_atk,tor_chc,tor_haste,cd_tor,tor_dur =(0,0,0,0,0)
+        #Base skill damage
         gs_mod,jt_mod,js_mod,eq_mod,aa_mod=(1,1,1,1,1)
         #Raid buffs
         cd_raid_buff,raid_buff_dur,raid_chc,raid_atk = (0,0,0,0)
-        #1000 = starts with resonance
-        pVerdict, verdict_bonus,reso_res, res_count = (0,0,0,0)
-
+        #Power of Glory, Verdict, previous Verdict, and talented bonus
+        PoG, Verdict, pVerdict, verdict_bonus = (0,0,0,0)
+        #Resonance Duration, Initial Meter, and tracker
+        reso_dur, reso_res, sim_inst_res_ct = (0,inscription_start,0)
+        #Set Fight Duration for each simulation
         duration = sim_dur
-        
+        #Initialize Lists Recording the current simulation's damage stats
         sim_dmg_all,sim_dmg_gs,sim_dmg_jt,sim_dmg_js,sim_dmg_eq,sim_dmg_aa = [],[],[],[],[],[]
-
-        #allows sim to loop in 0.05 second intervals
-        increment = 0.05
+        #allows sim to loop in 0.10 second intervals
+        increment = 0.10
 
         for _ in range((sim_dur*int(1/increment)*2)):
             #breaks loop for this iteration when fight ends
@@ -94,7 +98,7 @@ def Sim_run(until):
                 reso_res += 0 * increment * (1+(stat_reso*(0.00135)))
             #Logs activation of Resonance for tracking purposes
             if reso_dur > 0 and reso_res>0:
-                res_count += 1
+                sim_inst_res_ct += 1
                 reso_res = 0
             #Grants stack of Justice Thump if 0 sec CD
             if cd_jt <= 0 and jt_ct <=talent_index[8]:
@@ -113,7 +117,7 @@ def Sim_run(until):
             if cd_tor <= 0:
                 cd_tor = (120 - (15 * talent_index[19])) * (1-stat_cdr)
                 tor_dur = 15 + (1.5 * talent_index[19])
-                tor_atk = (63 + (stat_atk * 0.04) + 90 + 90 + 60 + 60) * (1+(0.23*3))
+                tor_atk = (63 + (stat_atk * 0.04) + 90 + 90 + 60 + 60)# * (1+(0.23*3))
                 tor_chc = 0.12
                 tor_haste = 0.12
             #disable buffs while ToR is inactive
@@ -294,9 +298,12 @@ def Sim_run(until):
             if PoG >= 5:
                 PoG += -5
                 if Verdict == 1 or 2:
-                    Verdict = 3
+                    pVerdict = 3 - Verdict
+                    Verdict = 3              
                 else:
                     Verdict = random.randint(1,2)
+                    if pVerdict == 0:
+                        pVerdict = Verdict
                 if Verdict == 2 or 3:
                     cd_js -= talent_index[15]   
             #Auto attack always applies every GCD, does not incur GCD timer
@@ -318,6 +325,7 @@ def Sim_run(until):
                 gs_mod = 1
                 js_bonus1 = 0
                 js_bonus2 = 0
+                verdict_bonus = 0
             #Tallies JT damage and consume JS bonus damage
             if dmg_jt!=0:
                 #JS Bonus, JS Crit Bonus, EQ Bonus, Verdict Bonus
@@ -328,6 +336,7 @@ def Sim_run(until):
                 jt_mod = 1
                 js_bonus1 = 0
                 js_bonus2 = 0
+                verdict_bonus = 0
             #Tallies JS damage and consume JS bonus damage
             if dmg_js!=0:
                 #JS Talent Bonus
@@ -340,6 +349,7 @@ def Sim_run(until):
                 js_mod = 1
                 js_bonus1 = 0
                 js_bonus2 = 0
+                verdict_bonus = 0
             #Tallies EQ damage and consume JS bonus damage
             if dmg_eq!=0:
                 #JS Bonus, JS Crit Bonus, [Impossible to get EQ bonus w/o 87% CDR], Verdict Bonus
@@ -350,6 +360,7 @@ def Sim_run(until):
                 eq_mod = 1
                 js_bonus1 = 0
                 js_bonus2 = 0
+                verdict_bonus = 0
             #Tallies AA damage
             if dmg_aa!=0:
                 #ToR stacking crit/haste buff
@@ -373,23 +384,23 @@ def Sim_run(until):
             raid_buff_dur -= increment
 
         #Tracks total GS/JT/JS/EQ/AA damage from each sim
-        sim_res_gs.append(int(sum(sim_dmg_gs)))
-        sim_res_jt.append(int(sum(sim_dmg_jt)))
-        sim_res_js.append(int(sum(sim_dmg_js)))
-        sim_res_eq.append(int(sum(sim_dmg_eq)))
-        sim_res_aa.append(int(sum(sim_dmg_aa)))
+        sim_rec_gs.append(int(sum(sim_dmg_gs)))
+        sim_rec_jt.append(int(sum(sim_dmg_jt)))
+        sim_rec_js.append(int(sum(sim_dmg_js)))
+        sim_rec_eq.append(int(sum(sim_dmg_eq)))
+        sim_rec_aa.append(int(sum(sim_dmg_aa)))
         #Tracks # of GS/JT/JS/EQ/AA hits from each sim
-        sim_res_gs_ct.append(len(sim_dmg_gs))
-        sim_res_jt_ct.append(len(sim_dmg_jt))
-        sim_res_js_ct.append(len(sim_dmg_js))
-        sim_res_eq_ct.append(len(sim_dmg_eq))
-        sim_res_aa_ct.append(len(sim_dmg_aa))
+        sim_rec_gs_ct.append(len(sim_dmg_gs))
+        sim_rec_jt_ct.append(len(sim_dmg_jt))
+        sim_rec_js_ct.append(len(sim_dmg_js))
+        sim_rec_eq_ct.append(len(sim_dmg_eq))
+        sim_rec_aa_ct.append(len(sim_dmg_aa))
         #Tracks total damage from each sim
-        sim_res_all.append(int(sum(sim_dmg_all)))
+        sim_rec_all.append(int(sum(sim_dmg_all)))
         #Calcualtes DPS from each sim
-        sim_res_dps.append(int(sum(sim_dmg_all)/sim_dur))
+        sim_rec_dps.append(int(sum(sim_dmg_all)/sim_dur))
         #Tracks Resonance/Inscription Activations
-        res_act_ct.append(res_count)
+        sim_rec_res_ct.append(sim_inst_res_ct)
         #Shows Progress of Simulation
         print("Iteration ",i,"/",until,end="\r")
 
@@ -408,31 +419,32 @@ def dmg_spread(x,y=None,a=0.5,b=0.05,c=0.95):
     return "{:,.0f} +/- {:,.0f}".format(stats_dmg[0], (stats_dmg[2] - stats_dmg[1]) / 2)
 
 print(" Damage Stats  Damage (95% Spread)")
-print("   GS Damage: ",dmg_spread(sim_res_gs,sim_res_gs_ct,0.5,0.05,0.95))
-print("   JT Damage: ",dmg_spread(sim_res_jt,sim_res_jt_ct,0.5,0.05,0.95))
-print("   JS Damage: ",dmg_spread(sim_res_js,sim_res_jt_ct,0.5,0.05,0.95))
-print("   EQ Damage: ",dmg_spread(sim_res_eq,sim_res_eq_ct,0.5,0.05,0.95))
-print("Total Damage: ",dmg_spread(sim_res_all,None,0.5,0.05,0.95))
-print("Avg. Sim Dmg: ",dmg_spread(sim_res_dps,None,0.5,0.05,0.95))
+print("   GS Damage: ",dmg_spread(sim_rec_gs,sim_rec_gs_ct,0.5,0.05,0.95))
+print("   JT Damage: ",dmg_spread(sim_rec_jt,sim_rec_jt_ct,0.5,0.05,0.95))
+print("   JS Damage: ",dmg_spread(sim_rec_js,sim_rec_jt_ct,0.5,0.05,0.95))
+print("   EQ Damage: ",dmg_spread(sim_rec_eq,sim_rec_eq_ct,0.5,0.05,0.95))
+print("Total Damage: ",dmg_spread(sim_rec_all,None,0.5,0.05,0.95))
+print("Avg. Sim Dmg: ",dmg_spread(sim_rec_dps,None,0.5,0.05,0.95))
 
 #To check Skill Cast Frequency
 '''
-print("# of GS Hits: ",sim_res_gs_ct)
-print("# of JT Hits: ",sim_res_jt_ct)
-print("# of JS Hits: ",sim_res_js_ct)
-print("# of EQ Hits: ",sim_res_eq_ct)
-print("# of AA Hits: ",sim_res_aa_ct)
-print("# of inscription: ",res_act_ct)
+print("# of GS Hits: ",sim_rec_gs_ct)
+print("# of JT Hits: ",sim_rec_jt_ct)
+print("# of JS Hits: ",sim_rec_js_ct)
+print("# of EQ Hits: ",sim_rec_eq_ct)
+print("# of AA Hits: ",sim_rec_aa_ct)
+print("# of inscription: ",sim_rec_res_ct)
 '''
 # if no values in list, skips quartile, common with short fight durations
 # Shows more detailed statistics
 '''
 print(" Damage Stats   Min, 25%, 50%, 75%, Max")
-print("   GS Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_res_gs, sim_res_gs_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
-print("   JT Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_res_jt, sim_res_jt_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
-print("   JS Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_res_js, sim_res_js_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
-print("   EQ Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_res_eq, sim_res_eq_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
-print("   AA Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_res_aa, sim_res_aa_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
-print("Total Damage: ",np.quantile(sim_res_all,[0,0.25,0.50,0.75,1.00],method="nearest"))
-print("Avg. Sim DPS: ",np.quantile(sim_res_dps,[0,0.25,0.50,0.75,1.00],method="nearest"))
+print("   GS Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_rec_gs, sim_rec_gs_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
+print("   JT Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_rec_jt, sim_rec_jt_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
+print("   JS Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_rec_js, sim_rec_js_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
+print("   EQ Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_rec_eq, sim_rec_eq_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
+print("   AA Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_rec_aa, sim_rec_aa_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
+print("Total Damage: ",np.quantile(sim_rec_all,[0,0.25,0.50,0.75,1.00],method="nearest"))
+print("Avg. Sim DPS: ",np.quantile(sim_rec_dps,[0,0.25,0.50,0.75,1.00],method="nearest"))
 '''
+#input("Press enter to exit.")
