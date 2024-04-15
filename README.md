@@ -1,12 +1,7 @@
 # Tarisland
 Tarisland Paladin Spreadsheet found here: https://docs.google.com/spreadsheets/d/14vKUGiKxMA5A0mZxaB9TpaurQAhtFDvvU1SopLGmPcE/edit#gid=0
-
-4/13/24: Talent Point Calculator WIP:
-    For now, just edit talent matrix within TSL_Pal.py
-    Ordered similarly to actual talents.
-          talent_index = [0,1,3,1,3,3,0,3,1,0,0,0,3,2,0,3,0,2,0,2,3,2]
     
-Currently has arbitrary raid buffs with 120 sec CD
+Currently has arbitrary raid buffs with 120 sec CD (can be toggled on/off)
     6 Players each providing: +32 ATK, +2% Crit chance, and +2% ATK buff
     Can edit this within TSL_Pal()
               if cd_raid_buff <= 0 and ext_raid_buff in [1,"Yes"]:
