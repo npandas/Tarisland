@@ -4,32 +4,219 @@ import math         #for math.floor() for a few calculations
 import numpy as np  #allows us to get quartile results, e.g., top 10%
 import subprocess   #in order to incorporate other scripts
 
-#Takes user-submitted values for starting stats
-output = subprocess.check_output(["python", "TSL_Pal_Config.py"]).decode().splitlines()
-stat_atk = float(output[0])
-stat_chc = float(output[1])
-stat_chd = float(output[2])
-stat_cdr = float(output[3])
-stat_reso = int(output[4])
-sim_dur = int(output[5])
-sim_iter = int(output[6])
-ext_raid_buff = output[7]
-inscription_start = output[7]
-#Establish starting resonance meter
-if inscription_start in [1,"Yes"]:
-    inscription_start = 1000
-else:
-    inscription_start = 0
-#Takes user-submitted talent points
-talent_index = [0]
-output = subprocess.check_output(["python", "TSL_Pal_Config_Talents.py"]).decode()
-#output is a string even though the original script provided integers??
-for x in output:
-    if x.isdigit():
-        talent_index.append(int(x))
+import tkinter as tk
+from tkinter import messagebox
 
-#Reference Solo DPS Talents
-#talent_index = [0,1,3,1,3,3,0,3,1,0,0,0,3,2,0,3,0,2,0,2,3,2]
+#Starting Stats Init.
+def submit_values():
+    global stat_atk,stat_chc,stat_chd,stat_cdr,stat_reso,sim_dur,sim_iter, ext_raid_buff,inscript_start
+    try:
+        stat_atk = float(entries[0].get())
+        stat_chc = float(entries[1].get())
+        stat_chd = float(entries[2].get())
+        stat_cdr = float(entries[3].get())
+        stat_reso = int(entries[4].get())
+        sim_dur = int(entries[5].get())
+        sim_iter = int(entries[6].get())  
+        ext_raid_buff = entries[7].get()
+        if ext_raid_buff.isdigit():
+            ext_raid_buff = int(ext_raid_buff)
+        elif isinstance(ext_raid_buff, str):
+            ext_raid_buff = ext_raid_buff.title()
+        inscript_start = entries[8].get()
+        if inscript_start.isdigit():
+            inscript_start = int(inscript_start)
+        elif isinstance(inscript_start, str):
+            inscript_start = inscript_start.title()
+
+    except ValueError:
+        messagebox.showerror("Error", "Please enter valid numerical values.")
+    root.destroy()
+
+# Create main window
+root = tk.Tk()
+root.title("Userform")
+
+# Default values
+default_values = {'Attack': 700, 'Crit. Chance': 0.42, 'Crit. Damage': 1.65, \
+                  'Cooldown': 0.19, 'Resonance': 1000, 'Fight Dur.': 90, '# of Sims': 100, \
+                  'External Raid Buffs': "Yes", 'Start w/ Inscription': "Yes"}
+
+# Create labels and entry fields for each variable with default values
+labels = ['Attack', 'Crit. Chance', 'Crit. Damage', 'Cooldown', 'Resonance', \
+          'Fight Dur.', '# of Sims', 'External Raid Buffs', 'Start w/ Inscription']
+entries = []
+
+for i, label_text in enumerate(labels):
+    label = tk.Label(root, text=label_text + ":")
+    label.grid(row=i, column=0)
+    entry = tk.Entry(root)
+    entry.insert(0, str(default_values[label_text]))
+    entry.grid(row=i, column=1)
+    entries.append(entry)
+
+# Create submit button
+submit_button = tk.Button(root, text="Submit", command=submit_values)
+submit_button.grid(row=len(labels), column=0, columnspan=2)
+
+root.geometry("+%d+%d" % (1400, 200))
+root.mainloop()
+
+if inscript_start in [1,"Yes"]:
+    inscript_start = 1000
+else:
+    inscript_start = 0
+
+
+#Talents Init.
+from functools import partial
+talent_index = []
+entries = [0]
+max_pt = 0
+
+def submit_values():   
+    global talent_index
+    total_points = sum(int(i.get()) for i in entries[1:])
+    if total_points > 32:
+        print("Too many talent points.")
+        root.destroy()
+        return
+    if total_points < 32:
+        print("Insufficient talent points.")
+        root.destroy()
+        return
+    else:
+        talent_index = [int(i.get()) for i in entries[1:]]
+    root.destroy()
+    print(talent_index)
+    return 
+
+# Create main window
+root = tk.Tk()
+root.title("Paladin - Justice Talents")
+root.geometry("480x560+1400+200")
+root.configure(bg="#ffffff")
+
+def update_total():
+    total = sum(int(entry.get()) for entry in entries[1:])
+    total_label.config(text=f"Total Points: {total}")
+
+# Function to show tooltip
+def show_tooltip(widget, tooltip_text):
+    x, y, _, _ = widget.bbox("insert")
+    x += widget.winfo_rootx() + 25
+    y += widget.winfo_rooty() + 25
+    
+    tooltip = tk.Toplevel(widget)
+    tooltip.wm_overrideredirect(True)
+    tooltip.wm_geometry(f"+{x}+{y}")
+    
+    label = tk.Label(tooltip, text=tooltip_text, background="#ffffe0", relief="solid", borderwidth=1)
+    label.pack(ipadx=5)
+
+    return tooltip
+
+# Function to hide tooltip
+def hide_tooltip(tooltip):
+    if tooltip:
+        tooltip.destroy()
+
+#Create entry fields
+def talent(t_name="name",defval=0,rowpos=1,colpos=1,max_pt=1,e="Tooltip requires update"):
+	#Create entry user input for talents
+	entry = tk.Entry(root, width=6,bg=root["bg"])
+	entry.insert(0, int(defval))
+	entry.grid(row = rowpos*2, column = (4*colpos)-1, sticky="nsew")
+	entries.append(entry)
+	# Function to increment the value of the associated entry widget
+	def increment_value(entry):
+		current_value = int(entry.get())
+		if current_value<=(max_pt-1):
+			entry.delete(0, tk.END)  
+			entry.insert(0, str(current_value + 1)) 
+			update_total()
+	# Function to decrement the value of the associated entry widget
+	def decrement_value():
+		current_value = int(entry.get())
+		if current_value>0:
+			entry.delete(0, tk.END)
+			entry.insert(0, str(current_value - 1))
+			update_total()
+
+	# Create button to increment value
+	increment_button = tk.Button(root, text = t_name, command=partial(increment_value, entry), width=14,bg=root["bg"])
+	increment_button.grid(row=rowpos*2, column=(4*colpos)-2, sticky="nsew")
+	# Bind right-click event to decrement function
+	increment_button.bind("<Button-3>", lambda event: decrement_value())
+	tooltip = None
+	increment_button.bind("<Enter>", lambda event: setattr(increment_button, 'tooltip', show_tooltip(increment_button, e)))
+	increment_button.bind("<Leave>", lambda event: hide_tooltip(getattr(increment_button, 'tooltip')))
+
+	#Adds space between rows
+	for row_index in range(1, 24, 2):
+		root.grid_rowconfigure(row_index, minsize=10)
+	#Adds space before first column
+	root.grid_columnconfigure(0, minsize=20)
+	root.grid_columnconfigure(15, minsize=20)
+
+talent("Glory\nStrike: ",1,1,1,3,\
+       "Glory Strike's base damage is increased by 5/10/15%.\nFor the next 6 seconds, you gain 2/4/6% haste.")
+talent("Justice\nThump Dmg%: ",1,1,2,3,\
+       "Justice Thump's damage is increased by 6/12/18%.\nWhen enhanced, it is increased by 10/20/30% instead.")
+talent("Critical\nStrike: ",1,2,1,3,\
+       "Increase your Critical Strike chance by 1.5/3.0/4.5%")
+talent("Power of\nGlory: ",3,2,2,3,\
+       "You have a 33.3/66.6/100% chance to gain 1 level\nof Power of Glory when you consume a Glory Judgement.")
+talent("Judgement\nStrike: ",3,2,3,3,\
+       "Judgement Strike increases the damage and\ncritical strike damage of your next skill by 4/8/12%")
+talent("Punishing\nStorm: ",0,3,1,3,\
+       "Your Punishing Storm deals 5/10/15% more damage.")
+talent("Earthquake\nGlory: ",3,3,2,3,\
+       "After you cast Earthquake, you have a 33/66/100%\nto gain a Glory Judgement (prioritizes skills that are not already enhanced.)")
+talent("Justice\nThump Charges: ",1,3,3,1,\
+       "Justice Thump can now store 2 charges.\nWhen Glory Strike resets the cooldown of\nJustice Thump, it grants a charge instead.")
+talent("Judgement\nSword: ",1,4,1,1,\
+       "Replace Judgement Strike with Judgement Sword.")
+talent("Glory\nStrike x3: ",1,4,2,3,\
+       "Every 3rd Glory Strike has a 15/30/45%\nincreased Critical Strike Chance.")
+talent("Judgement Sword\nRecharge: ",0,5,1,3,\
+       "Judgement Sword has a 10/20/30%\nto regain a charge and increase the damage of the next\nJudgement Sword by 4/8/12%.")
+talent("Glory\nJudgement: ",3,5,2,3,\
+       "Consecutive Glory Judgements increases your next\nskill's Critical strike chance by 10/20/30%.\nOtherwise, your next skill deals 12/24/36% increased damage.")
+talent("Judgement\nStrike Dmg%: ",2,5,3,2,\
+       "Your Judgement Strike's Critical Strike chance is increased by 3/6%.\nWhen Judgement Strike critically hits, your next skill deals 5/10% more damage.")
+talent("Judgement\nSword CHD: ",0,6,1,3,\
+       "You deal 15/30/45% increased critical damage to targets afflicted\nby Judgement Sword's damage-over-time effect.")
+talent("Judgement\nStrike Crit: ",3,6,2,3,\
+       "Judgement Strike deals 4/8/12% more damage.\nIf Judgement Strike critically hits or gains Glory Judgement,\nthe cooldown is reduced by 1/2/3 seconds.")
+talent("Judgement\nSword DOT: ",0,7,1,3,\
+       "Judgement Sword deals 10/20/30% more damage immediately,\nand the damage-over-time is increased by 30/60/90%.")
+talent("Earthquake\nDmg%: ",2,7,2,2,\
+       "Your Earthquake deals 10/20% more damage,\nand you deal 7/14% increased damage to affected targets for 4 seconds.")
+talent("Trial of Rage\nRaid: ",0,8,2,2,\
+       "Your party is affected by Trial of Rage with 25/50% effect.")
+talent("Trial of Rage\nCDR: ",2,8,3,2,\
+       "Trial of Rage lasts 1.5/3 seconds longer\nand its cooldown is reduced by 15/30 seconds.")
+talent("Glory\nJudgement RNG ",3,9,1,3,\
+       "Whenever you gain a Glory Judgement from Power of Glory,\nthere is a 3.33/6.66/10% to gain another Glory Judgement.")
+talent("Trial of Rage\nStack ",2,9,3,2,\
+       "While Trial of Rage is active, you gain 1.25/2.5%\ncritical strike chance and haste\nwhenever you deal damage.")
+
+#Create total label
+total_label = tk.Label(root, text="Total Points: 0", bg=root["bg"])
+total_label.grid(row=24, column=5, columnspan=4)
+
+# Create submit button
+submit_button = tk.Button(root, text="Submit", command=submit_values, width = 60, bg=root["bg"], fg="#000000")
+submit_button.grid(row=26, column=0, columnspan=14)
+
+# Load default talent points total (32)
+update_total()
+
+root.mainloop()
+
+#Adds filler 0, first element is ignored by the main simulation
+talent_index.insert(0,0)
 
 #Cancels script if talents are incorrect
 if sum(talent_index)>32:
@@ -41,21 +228,11 @@ elif sum(talent_index)<32:
 elif sum(talent_index)==32:
     print("Talent Points Loaded Succesfully.\n")
 
-#Default Stats w/o user import
-'''
-stat_atk = 700
-stat_chc = 0.43
-stat_chd = 1.65
-stat_cdr = 0.19
-stat_reso = 1000
-sim_dur = 110
-sim_iter = 100
-'''
 #Initialize Lists Recording every simulation iteration statistics
 sim_rec_gs,sim_rec_jt,sim_rec_js,sim_rec_eq,sim_rec_aa,sim_rec_all,sim_rec_dps = [],[],[],[],[],[],[]
 sim_rec_gs_ct,sim_rec_jt_ct,sim_rec_js_ct,sim_rec_eq_ct,sim_rec_aa_ct = [],[],[],[],[]
 sim_rec_res_ct = []
-
+data_list = []
 def Sim_run(until):
 
     for i in range(until):
@@ -76,7 +253,7 @@ def Sim_run(until):
         #Power of Glory, Verdict, previous Verdict, and talented bonus
         PoG, Verdict, pVerdict, verdict_bonus = (0,0,0,0)
         #Resonance Duration, Initial Meter, and tracker
-        reso_dur, reso_res, sim_inst_res_ct = (0,inscription_start,0)
+        reso_dur, reso_res, sim_inst_res_ct = (0,inscript_start,0)
         #Set Fight Duration for each simulation
         duration = sim_dur
         #Initialize Lists Recording the current simulation's damage stats
@@ -322,6 +499,9 @@ def Sim_run(until):
                         * (1+((eq_dur>0) * talent_index[17] * 0.07)) * (1+((verdict_bonus==2)*talent_index[12]*0.12))
                 sim_dmg_gs.append(int(dmg_gs * gs_mod * (1+((reso_dur>0)*stat_reso*0.0007))))
                 sim_dmg_all.append(sim_dmg_gs[-1])
+                #Record to pandas-excel
+                data_list.append({'Sim #': i+1, 'Time': sim_dur - duration, 'Skill': "GS", 'Damage': \
+                            dmg_gs * gs_mod * (1 + ((reso_dur > 0) * stat_reso * 0.0007))})
                 gs_mod = 1
                 js_bonus1 = 0
                 js_bonus2 = 0
@@ -333,6 +513,9 @@ def Sim_run(until):
                         * (1+((eq_dur>0) * talent_index[17] * 0.07)) * (1+((verdict_bonus==2)*talent_index[12]*0.12))
                 sim_dmg_jt.append(int(dmg_jt * jt_mod * (1+((reso_dur>0)*stat_reso*0.0007))))
                 sim_dmg_all.append(sim_dmg_jt[-1])
+                #Record to pandas-excel
+                data_list.append({'Sim #': i+1, 'Time': sim_dur - duration, 'Skill': "JT", 'Damage': \
+                            dmg_jt * jt_mod * (1 + ((reso_dur > 0) * stat_reso * 0.0007))})
                 jt_mod = 1
                 js_bonus1 = 0
                 js_bonus2 = 0
@@ -346,6 +529,9 @@ def Sim_run(until):
                         * (1+((eq_dur>0) * talent_index[17] * 0.07)) * (1+((verdict_bonus==2)*talent_index[12]*0.12))
                 sim_dmg_js.append(int(dmg_js * js_mod * (1+((reso_dur>0)*stat_reso*0.0007))))
                 sim_dmg_all.append(sim_dmg_js[-1])
+                #Record to pandas-excel
+                data_list.append({'Sim #': i+1, 'Time': sim_dur - duration, 'Skill': "JS", 'Damage': \
+                            dmg_js * js_mod * (1 + ((reso_dur > 0) * stat_reso * 0.0007))})
                 js_mod = 1
                 js_bonus1 = 0
                 js_bonus2 = 0
@@ -357,6 +543,9 @@ def Sim_run(until):
                         * (1+((verdict_bonus==2)*talent_index[12]*0.12))
                 sim_dmg_eq.append(int(dmg_eq * eq_mod * (1+((reso_dur>0)*stat_reso*0.0007))))
                 sim_dmg_all.append(sim_dmg_eq[-1])
+                #Record to pandas-excel
+                data_list.append({'Sim #': i+1, 'Time': sim_dur - duration, 'Skill': "EQ", 'Damage': \
+                            dmg_eq * eq_mod * (1 + ((reso_dur > 0) * stat_reso * 0.0007))})
                 eq_mod = 1
                 js_bonus1 = 0
                 js_bonus2 = 0
@@ -368,7 +557,10 @@ def Sim_run(until):
                 tor_haste += (0.0125 * talent_index[21])
                 sim_dmg_aa.append(int(dmg_aa * aa_mod * (1+((reso_dur>0)*stat_reso*0.0007))))
                 sim_dmg_all.append(sim_dmg_aa[-1])
-                aa_mod = 1                
+                #Record to pandas-excel
+                data_list.append({'Sim #': i+1, 'Time': sim_dur - duration, 'Skill': "AA", 'Damage': \
+                            dmg_aa * aa_mod * (1 + ((reso_dur > 0) * stat_reso * 0.0007))})
+                aa_mod = 1   
             #Increments cooldowns and buffs
             cd_gs -= increment
             cd_jt -= increment
@@ -425,6 +617,12 @@ print("   JS Damage: ",dmg_spread(sim_rec_js,sim_rec_jt_ct,0.5,0.05,0.95))
 print("   EQ Damage: ",dmg_spread(sim_rec_eq,sim_rec_eq_ct,0.5,0.05,0.95))
 print("Total Damage: ",dmg_spread(sim_rec_all,None,0.5,0.05,0.95))
 print("Avg. Sim Dmg: ",dmg_spread(sim_rec_dps,None,0.5,0.05,0.95))
+#Save results to Excel
+import pandas as pd
+print("\nExporting data to Excel...",end="\r")
+data_export = pd.DataFrame(columns=["Sim #", "Time", "Skill", "Damage"])
+data_export = pd.DataFrame(data_list)
+data_export.to_excel("Sim Data.xlsx", index=False)
 
 #To check Skill Cast Frequency
 '''
@@ -447,4 +645,5 @@ print("   AA Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(si
 print("Total Damage: ",np.quantile(sim_rec_all,[0,0.25,0.50,0.75,1.00],method="nearest"))
 print("Avg. Sim DPS: ",np.quantile(sim_rec_dps,[0,0.25,0.50,0.75,1.00],method="nearest"))
 '''
-#input("Press enter to exit.")
+
+input("Data Exported Successfully.\nPress any key to exit.")
