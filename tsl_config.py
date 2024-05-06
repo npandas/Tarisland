@@ -1,69 +1,76 @@
 import tkinter as tk
 from tkinter import messagebox
 
+def main():
+    stat_import = []
+    # Default values
+    defaults = {'Attack': 700, 'Crit. Chance': 0.42, 'Crit. Damage': 1.65, \
+                    'Cooldown': 0.19, 'Resonance': 1000, 'Fight Dur.': 90, '# of Sims': 100, \
+                    'External Raid Buffs': "Yes", 'Start w/ Inscription': "Yes", \
+                    'GS Dmg EoD': 0, '30% GS EoD': 0, \
+                    'JT Dmg EoD': 0, '30% JT EoD': 0, \
+                    'JS Dmg EoD': 0, '30% JS EoD': 0, \
+                    'EQ Dmg EoD': 0, '30% EQ EoD': 0, \
+                    'GS Echo Stack': 0, 'JT Echo Stack': 3, \
+                    'JS Echo Stack': 3, 'EQ Echo Stack': 0, \
+                    'ToR Bonus ATK': 150, 'ToR Bonus %': 0.06}
 
-def submits():
-    try:
-        stat_atk = float(entries[0].get())
-        stat_chc = float(entries[1].get())
-        stat_chd = float(entries[2].get())
-        stat_cdr = float(entries[3].get())
-        stat_reso = int(entries[4].get())
-        sim_dur = int(entries[5].get())
-        sim_iter = int(entries[6].get())  
-        ext_raid_buff = entries[7].get()
-        if ext_raid_buff.isdigit():
-            ext_raid_buff = int(ext_raid_buff)
-        elif isinstance(ext_raid_buff, str):
-            ext_raid_buff = ext_raid_buff.title()
-        inscript_start = entries[8].get()
-        if inscript_start.isdigit():
-            inscript_start = int(inscript_start)
-        elif isinstance(inscript_start, str):
-            inscript_start = inscript_start.title()
+    # Create labels and entry fields for each variable with default values
+    labels = ['Attack', 'Crit. Chance', 'Crit. Damage', 'Cooldown', 'Resonance', \
+            'Fight Dur.', '# of Sims', 'External Raid Buffs', 'Start w/ Inscription', \
+            'GS Dmg EoD', '30% GS EoD', 'JT Dmg EoD', '30% JT EoD', 'JS Dmg EoD', \
+            '30% JS EoD', 'EQ Dmg EoD', '30% EQ EoD', 'GS Echo Stack', 'JT Echo Stack', \
+            'JS Echo Stack', 'EQ Echo Stack', 'ToR Bonus ATK', 'ToR Bonus %']
+    entries = []
+
+    def submit_value():
+        try:
+            for i in range(len(entries)):
+                if i <=3:
+                    stat_import.append(float(entries[i].get()))
+                elif 4 <= i <= 6:
+                    stat_import.append(int(entries[i].get()))
+                if 7 <= i <= 8:
+                    stat_import.append(entries[i].get())
+
+        except ValueError:
+            messagebox.showerror("Error", "Please enter valid numerical values.")
+            return
         
+        root.destroy()
 
-    except ValueError:
-        messagebox.showerror("Error", "Please enter valid numerical values.")
-        return
+    # Create main window
+    root = tk.Tk()
+    root.title("Sim Settings")
+
+    for i, label_text in enumerate(labels):
+        label = tk.Label(root, text=label_text + ":")
+        if i<=8:
+            label.grid(row=i, column=0)
+        elif 8<i<=16:
+            label.grid(row=i-9, column=2)
+        elif i>16:
+            label.grid(row=i-17, column=4)
+        entry = tk.Entry(root, width=8)
+        entry.insert(0, str(defaults[label_text]))
+        if i<=8:
+            entry.grid(row=i, column=1)
+        elif 8<i<=16:
+            entry.grid(row=i-9, column=3)
+        elif i>16:
+            entry.grid(row=i-17, column=5)
+        entries.append(entry)
+
+    # Create submit button
+    submit_button = tk.Button(root, text="Submit", command=submit_value, width=30)
+    submit_button.grid(row=len(labels), column=0, columnspan=6)
+    root.geometry("420x260+1400+200")
+    root.mainloop()
     
-    root.destroy()
+    #edit this range once I fix additional stats in main.py
+    return stat_import[0:9]
 
-    print(stat_atk)
-    print(stat_chc)
-    print(stat_chd)
-    print(stat_cdr)
-    print(stat_reso)
-    print(sim_dur)
-    print(sim_iter)
-    print(ext_raid_buff)
-    print(inscript_start)
-
-# Create main window
-root = tk.Tk()
-root.title("Sim Settings")
-
-# Default values
-defaults = {'Attack': 700, 'Crit. Chance': 0.42, 'Crit. Damage': 1.65, \
-                'Cooldown': 0.19, 'Resonance': 1000, 'Fight Dur.': 90, '# of Sims': 100, \
-                'External Raid Buffs': "Yes", 'Start w/ Inscription': "Yes"}
-
-# Create labels and entry fields for each variable with default values
-labels = ['Attack', 'Crit. Chance', 'Crit. Damage', 'Cooldown', 'Resonance', \
-        'Fight Dur.', '# of Sims', 'External Raid Buffs', 'Start w/ Inscription']
-entries = []
-
-for i, label_text in enumerate(labels):
-    label = tk.Label(root, text=label_text + ":")
-    label.grid(row=i, column=0)
-    entry = tk.Entry(root)
-    entry.insert(0, str(defaults[label_text]))
-    entry.grid(row=i, column=1)
-    entries.append(entry)
-
-# Create submit button
-submit_button = tk.Button(root, text="Submit", command=submits)
-submit_button.grid(row=len(labels), column=0, columnspan=2)
-
-root.geometry("+%d+%d" % (1400, 200))
-root.mainloop()
+#Runs script when executed directly.
+if __name__ == "__main__":
+	main()
+	print(talent_index)

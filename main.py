@@ -2,38 +2,30 @@
 import random       #RNG generation for crits and procs
 import math         #for math.floor() for a few calculations
 import numpy as np  #allows us to get quartile results, e.g., top 10%
-import subprocess   #in order to incorporate other scripts
+#import subprocess   #in order to incorporate other scripts
 
 #Takes user-submitted values for starting stats
-output = subprocess.check_output(["python", "tsl_config.py"]).decode().splitlines()
-stat_atk,stat_chc,stat_chd,stat_cdr  = float(output[0]), float(output[1]), float(output[2]), float(output[3])
-stat_reso, sim_dur, sim_iter = int(output[4]), int(output[5]), int(output[6])
-ext_raid_buff, inscript_start = output[7], output[8]
+import tsl_config as tconfig
+stat_atk,stat_chc,stat_chd,stat_cdr,stat_reso, sim_dur, \
+sim_iter,ext_raid_buff, inscript_start  = tconfig.main()
 
 #Establish starting resonance meter
 if inscript_start in [1,"Yes"]:
     inscript_start = 1000
 else:
     inscript_start = 0
+if ext_raid_buff in [1,"Yes"]:
+    ext_raid_buff = 1
+else:
+    ext_raid_buff = 0
 
 #Default Stats w/o user import
-'''
-stat_atk = 700
-stat_chc = 0.43
-stat_chd = 1.65
-stat_cdr = 0.19
-stat_reso = 1000
-sim_dur = 110
-sim_iter = 100
-'''
+#stat_atk,stat_chc,stat_chd,stat_cdr,stat_reso,sim_dur,sim_iter = 700,0.43,1.65,0.19,1000,110,100
 
 #Takes user-submitted talent points
+import tsl_talent as ttalent
 talent_index = [0]
-output = subprocess.check_output(["python", "tsl_talent.py"]).decode()
-#output is a string even though the original script provided integers??
-for x in output:
-    if x.isdigit():
-        talent_index.append(int(x))
+talent_index.extend(ttalent.main())
 
 #Reference Solo DPS Talents
 #talent_index = [0,1,3,1,3,3,0,3,1,0,0,0,3,2,0,3,0,2,0,2,3,2]
@@ -52,8 +44,8 @@ elif sum(talent_index)==32:
 sim_rec_gs,sim_rec_jt,sim_rec_js,sim_rec_eq,sim_rec_aa,sim_rec_all,sim_rec_dps = [],[],[],[],[],[],[]
 sim_rec_gs_ct,sim_rec_jt_ct,sim_rec_js_ct,sim_rec_eq_ct,sim_rec_aa_ct = [],[],[],[],[]
 sim_rec_res_ct = []
-#Saves all data for later Excel writing
-data_list = []
+#Saves all data for Excel export. data_list is all data per sim_iter
+sim_data_list = []
 
 def Sim_run(until):
 
@@ -83,7 +75,7 @@ def Sim_run(until):
         #allows sim to loop in 0.10 second intervals
         increment = 0.10
         #Record cumulative damage per sim
-        cml_dmg = 0 
+        cml_dmg, data_list = 0, [] 
 
         for _ in range((sim_dur*int(1/increment)*2)):
             #breaks loop for this iteration when fight ends
@@ -125,13 +117,13 @@ def Sim_run(until):
                 tor_chc = 0
                 tor_haste = 0
             #Activates Raid Buffs, sets duration, crit chance and cooldown
-            if cd_raid_buff <= 0 and ext_raid_buff in [1,"Yes"]:
+            if cd_raid_buff <= 0 and ext_raid_buff == 1:
                 cd_raid_buff = 120  * (1-stat_cdr)
                 raid_buff_dur = 12
                 raid_atk = (63*6*0.5) + ((stat_atk * 0.04)*6*0.5)
                 raid_chc = (0.04*6*0.5)
             #disable Raid buffs
-            if raid_buff_dur <= 0 and ext_raid_buff in [1,"Yes"]:
+            if raid_buff_dur <= 0 and ext_raid_buff == 1:
                 raid_atk = 0
                 raid_chc = 0
             #Tracks Trial of Rage and other buffs
@@ -316,10 +308,11 @@ def Sim_run(until):
             #This assumes data_list is structured chronologically
             #Records prior 15 second damage for analytics
             if (dmg_gs+dmg_jt+dmg_js+dmg_eq+dmg_aa)!=0:   
-                filtered_data = (row for row in data_list if row['Sim #'] == i+1 and\
-                                 row['Time'] >= (sim_dur-duration-15) and row['Time']\
-                                    <(sim_dur-duration))
-                for row in filtered_data:
+                filter_dl = (row for row in data_list if row['Sim #'] == i+1 and\
+                            row['Time'] >= (sim_dur-duration-15) and row['Time']\
+                            <(sim_dur-duration))
+                #Recalculates prior 15 second damage from scratch
+                for row in filter_dl:
                     cml_dmg += row['Damage']
             #Tallies GS damage and consume JS bonus damage
             if dmg_gs!=0:
@@ -411,6 +404,9 @@ def Sim_run(until):
             reso_dur -= increment
             cd_raid_buff -= increment
             raid_buff_dur -= increment
+            #Resets n-second damage. If the window was larger than 15 seconds
+            #It would be more efficient to drop last n damage instances, and add new damage instance
+            #instead of recalculating n-second window from scratch
             cml_dmg = 0
 
         #Tracks total GS/JT/JS/EQ/AA damage from each sim
@@ -427,20 +423,24 @@ def Sim_run(until):
         sim_rec_aa_ct.append(len(sim_dmg_aa))
         #Tracks total damage from each sim
         sim_rec_all.append(int(sum(sim_dmg_all)))
-        #Calcualtes DPS from each sim
+        #Calculates DPS from each sim
         sim_rec_dps.append(int(sum(sim_dmg_all)/sim_dur))
         #Tracks Resonance/Inscription Activations
         sim_rec_res_ct.append(sim_inst_res_ct)
+        #Appends 15 second damage data
+        #Breaking it out into per-sim lists optimizes script speed
+        sim_data_list.extend(data_list)
         #Shows Progress of Simulation
         print("Iteration ",i,"/",until,end="\r")
 
 Sim_run(sim_iter)
 
+#Output base GCD, # of Simulations, and Fight Duration
 print(f"{1-stat_cdr:,.3f} GCD time          ")   
 print(f"{sim_iter:,.0f} Simulations")
 print(f"{sim_dur:,.0f} Second Fight Duration\n")
 
-#shows +/- Damage capturing 90% of damage range
+#shows +/- Damage capturing 5-95% of damage range
 def dmg_spread(x,y=None,a=0.5,b=0.05,c=0.95):
     if y is None:
         stats_dmg = np.quantile(x,[a,b,c],method="nearest")
@@ -448,38 +448,20 @@ def dmg_spread(x,y=None,a=0.5,b=0.05,c=0.95):
         stats_dmg = np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(x,y)],[a,b,c],method="nearest")
     return "{:,.0f} +/- {:,.0f}".format(stats_dmg[0], (stats_dmg[2] - stats_dmg[1]) / 2)
 
-print(" Damage Stats  Damage (95% Spread)")
+print(" Damage Stats  Damage (+/- 45% Spread)")
 print("   GS Damage: ",dmg_spread(sim_rec_gs,sim_rec_gs_ct,0.5,0.05,0.95))
 print("   JT Damage: ",dmg_spread(sim_rec_jt,sim_rec_jt_ct,0.5,0.05,0.95))
 print("   JS Damage: ",dmg_spread(sim_rec_js,sim_rec_jt_ct,0.5,0.05,0.95))
 print("   EQ Damage: ",dmg_spread(sim_rec_eq,sim_rec_eq_ct,0.5,0.05,0.95))
 print("Total Damage: ",dmg_spread(sim_rec_all,None,0.5,0.05,0.95))
 print("Avg. Sim Dmg: ",dmg_spread(sim_rec_dps,None,0.5,0.05,0.95))
+
 #Save results to Excel
 import pandas as pd
+print("\nExporting data to Excel...",end="\r")
 data_export = pd.DataFrame(columns=["Sim #", "Time", "Skill", "Damage","15 Sec Dmg","ToR","Inscript"])
-data_export = pd.DataFrame(data_list)
+data_export = pd.DataFrame(sim_data_list)
 data_export.to_excel("Sim Data.xlsx", index=False)
 
-#To check Skill Cast Frequency
-'''
-print("# of GS Hits: ",sim_rec_gs_ct)
-print("# of JT Hits: ",sim_rec_jt_ct)
-print("# of JS Hits: ",sim_rec_js_ct)
-print("# of EQ Hits: ",sim_rec_eq_ct)
-print("# of AA Hits: ",sim_rec_aa_ct)
-print("# of inscription: ",sim_rec_res_ct)
-'''
-# if no values in list, skips quartile, common with short fight durations
-# Shows more detailed statistics
-'''
-print(" Damage Stats   Min, 25%, 50%, 75%, Max")
-print("   GS Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_rec_gs, sim_rec_gs_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
-print("   JT Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_rec_jt, sim_rec_jt_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
-print("   JS Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_rec_js, sim_rec_js_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
-print("   EQ Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_rec_eq, sim_rec_eq_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
-print("   AA Damage: ",np.quantile([int(i / j) if j!=0 else 0 for i, j in zip(sim_rec_aa, sim_rec_aa_ct)],[0,0.25,0.50,0.75,1.00],method="nearest"))
-print("Total Damage: ",np.quantile(sim_rec_all,[0,0.25,0.50,0.75,1.00],method="nearest"))
-print("Avg. Sim DPS: ",np.quantile(sim_rec_dps,[0,0.25,0.50,0.75,1.00],method="nearest"))
-'''
-#input("Press enter to exit.")
+print("Data Exported Successfully.")
+#input("Press any key to exit.")
