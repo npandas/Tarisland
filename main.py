@@ -6,14 +6,24 @@ import numpy as np  #allows us to get quartile results, e.g., top 10%
 
 #Takes user-submitted values for starting stats
 import tsl_config as tconfig
-stat_atk,stat_chc,stat_chd,stat_cdr,stat_reso, sim_dur, \
-sim_iter,ext_raid_buff, inscript_start  = tconfig.main()
+all_stats = tconfig.main()
+stat_atk,stat_chc,stat_chd,stat_cdr,stat_reso, sim_dur\
+,sim_iter,ext_raid_buff, inscript_start\
+,eod_dmg_gs,eod_dmg_jt,eod_dmg_js,eod_dmg_eq\
+,eod_chn_gs_dmg,eod_chn_jt_dmg,eod_chn_js_dmg,eod_chn_eq_dmg\
+,echo_start\
+,eod_stack_gs,eod_stack_jt,eod_stack_js,eod_stack_eq\
+,eod_tor_atk,eod_tor_bon = all_stats
 
-#Establish starting resonance meter
+#Establish starting Resonance, Inscription Stacks, and External Buffs
 if inscript_start in [1,"Yes"]:
     inscript_start = 1000
 else:
     inscript_start = 0
+if echo_start in [15,"Yes"]:
+    echo_start = 15
+else:
+    echo_start = 0
 if ext_raid_buff in [1,"Yes"]:
     ext_raid_buff = 1
 else:
@@ -24,8 +34,7 @@ else:
 
 #Takes user-submitted talent points
 import tsl_talent as ttalent
-talent_index = [0]
-talent_index.extend(ttalent.main())
+talent_index=(ttalent.main())
 
 #Reference Solo DPS Talents
 #talent_index = [0,1,3,1,3,3,0,3,1,0,0,0,3,2,0,3,0,2,0,2,3,2]
@@ -46,6 +55,7 @@ sim_rec_gs_ct,sim_rec_jt_ct,sim_rec_js_ct,sim_rec_eq_ct,sim_rec_aa_ct = [],[],[]
 sim_rec_res_ct = []
 #Saves all data for Excel export. data_list is all data per sim_iter
 sim_data_list = []
+sim_combat_log_time,sim_combat_log_events = [],[]
 
 def Sim_run(until):
 
@@ -57,7 +67,7 @@ def Sim_run(until):
         #Set charges of GS and JT (if talented)
         gs_ct,jt_ct = (2,talent_index[8]+1)
         #GCD based on CDR and adjusted GCD for haste effects 
-        gcd,a_gcd=(1-stat_cdr,1-stat_cdr)
+        gcd,a_gcd=(1-stat_cdr,0)
         #Trial of Rage variables
         tor_atk,tor_chc,tor_haste,cd_tor,tor_dur =(0,0,0,0,0)
         #Base skill damage
@@ -75,23 +85,62 @@ def Sim_run(until):
         #allows sim to loop in 0.10 second intervals
         increment = 0.10
         #Record cumulative damage per sim
-        cml_dmg, data_list = 0, [] 
+        cml_dmg, data_list = 0, []
+        #Inscription echo, set duration to 0 and reset
+        echo_dur, echo_stack = 0,echo_start 
+        #Inscript Chance% Dmg set to 0
+        eod_chn_gs,eod_chn_jt,eod_chn_js,eod_chn_eq,eod_tor_ct = 0,0,0,0,0
 
         for _ in range((sim_dur*int(1/increment)*2)):
             #breaks loop for this iteration when fight ends
             if duration<=0:
-                break 
-
+                break
+            #30% to gain a stack of Inscription
+            elif duration-int(duration)<=increment and echo_dur<=0:
+                if random.randint(1,100) <= 30:
+                    echo_stack +=1
+                    sim_combat_log_time.append([i+1, sim_dur-duration])
+                    sim_combat_log_events.append("You gain 1 stack of Inscription Echo.")
+            #Cannot build stacks while Echo is active
+            if echo_dur > 0:
+                echo_stack = 0 
+            #Inscription Echo activation
+            if echo_stack >=15:
+                echo_dur = 9
+                echo_active = 1
+                sim_combat_log_time.append([i+1, sim_dur-duration])
+                sim_combat_log_events.append("You lose "+str(echo_stack)+" stacks of Inscription Echo.")
+                sim_combat_log_time.append([i+1, sim_dur-duration])
+                sim_combat_log_events.append("You gain Echo of Destiny.")
+                echo_stack = 0
+                eod_tor_ct = 1
+                if random.randint(1,100)<=30:
+                    eod_chn_gs = 1
+                if random.randint(1,100)<=30:
+                    eod_chn_jt = 1
+                if random.randint(1,100)<=30:
+                    eod_chn_js = 1
+                if random.randint(1,100)<=30:
+                    eod_chn_eq = 1      
+            #Deactivate Echo of Destiny
+            if echo_dur <= 0 and echo_active == 1:
+                echo_active = 0
+                eod_chn_gs = 0
+                eod_chn_jt = 0
+                eod_chn_js = 0
+                eod_chn_eq = 0
+                sim_combat_log_time.append([i+1, sim_dur-duration])
+                sim_combat_log_events.append("You lose Echo of Destiny.")
             #Resonance Inscription activation
             if reso_res >= 1000:
                 reso_dur = 6
+                reso_res = 0
+                sim_inst_res_ct += 1
+                sim_combat_log_time.append([i+1, sim_dur-duration])
+                sim_combat_log_events.append("Inscription is active")
             #Passive Resonance Energy Gain (Default = None)
             elif reso_res < 1000 and reso_dur <= 0:
                 reso_res += 0 * increment * (1+(stat_reso*(0.00135)))
-            #Logs activation of Resonance for tracking purposes
-            if reso_dur > 0 and reso_res>0:
-                sim_inst_res_ct += 1
-                reso_res = 0
             #Grants stack of Justice Thump if 0 sec CD
             if cd_jt <= 0 and jt_ct <=talent_index[8]:
                 jt_ct += 1
@@ -107,15 +156,21 @@ def Sim_run(until):
                 verdict_bonus = 2
             #Activates Trial of Rage, sets duration, crit chance and cooldown
             if cd_tor <= 0:
+                tor_active = 1
                 cd_tor = (120 - (15 * talent_index[19])) * (1-stat_cdr)
                 tor_dur = 15 + (1.5 * talent_index[19])
-                tor_atk = (63 + (stat_atk * 0.04) + 90 + 90 + 60 + 60)# * (1+(0.23*3))
+                tor_atk = (63 + (stat_atk * 0.04) + 90 + eod_tor_atk) * (1+(eod_tor_bon*eod_tor_ct))
                 tor_chc = 0.12
                 tor_haste = 0.12
+                sim_combat_log_time.append([i+1, sim_dur-duration])
+                sim_combat_log_events.append("You gain Trial of Rage.")
             #disable buffs while ToR is inactive
-            if tor_dur <= 0:    
+            if tor_dur <= 0 and tor_active == 1:
+                tor_active = 0    
                 tor_chc = 0
                 tor_haste = 0
+                sim_combat_log_time.append([i+1, sim_dur-duration])
+                sim_combat_log_events.append("You lose Trial of Rage.")
             #Activates Raid Buffs, sets duration, crit chance and cooldown
             if cd_raid_buff <= 0 and ext_raid_buff == 1:
                 cd_raid_buff = 120  * (1-stat_cdr)
@@ -208,17 +263,17 @@ def Sim_run(until):
                     a_gcd = fstat_gcd
                     if Verdict == 1 or 3:
                         Verdict += -1
-                        #Up to 10% to gain 1 Power of Glory when consuming Verdict
+                        #33/67/100% to gain 1 Power of Glory when consuming Verdict
                         if random.randint(1,3) <= talent_index[4]:
                             PoG += 1
                         if fstat_chc>=(random.randint(1,100)/100):
                             dmg_jt=JT * (stat_chd+(js_bonus1 * talent_index[5] * 0.04)) * (1+(talent_index[2]*0.10))
-                            if fstat_chc>=(random.randint(1,100)/100):
-                                dmg_jt+=JT * (stat_chd+(js_bonus1 * talent_index[5] * 0.04)) * (1+(talent_index[2]*0.10))
                         else:
-                            dmg_jt=JT * (1+(talent_index[2]*0.10))
-                            if fstat_chc>=(random.randint(1,100)/100):
-                                dmg_jt+=JT * (stat_chd+(js_bonus1 * talent_index[5] * 0.04)) * (1+(talent_index[2]*0.10))
+                            dmg_jt=JT * (1+(talent_index[2]*0.10))                            
+                        if fstat_chc>=(random.randint(1,100)/100):
+                            dmg_jt+=JT * (stat_chd+(js_bonus1 * talent_index[5] * 0.04)) * (1+(talent_index[2]*0.10))
+                        else:
+                            dmg_jt+=JT * (1+(talent_index[2]*0.10))
                     elif Verdict == 0 or 2:
                         if fstat_chc>=(random.randint(1,100)/100):
                             dmg_jt = JT * (stat_chd+(js_bonus1 * talent_index[5] * 0.04)) * (1+(talent_index[2]*0.06))
@@ -240,42 +295,21 @@ def Sim_run(until):
                     if reso_dur > 0:
                         PoG += 1
                     #Glory Strike has x% to reset Justice Thump CD or grant charge
-                    #and double the damage of the next Justice Thump                   
-                    if fstat_chc>=0.50:
-                        if random.randint(1,100) <= 15:
-                            jt_mod *= 2  
-                            if talent_index[8]==1 and jt_ct <2:
-                                jt_ct += 1
-                            elif talent_index[8]==0:
-                                cd_jt = 0           
-                    elif fstat_chc>=0.42:
-                        if random.randint(1,100) <= 12:
-                            jt_mod *= 2
-                            if talent_index[8]==1 and jt_ct <2:
-                                jt_ct += 1
-                            elif talent_index[8]==0:
-                                cd_jt = 0  
-                    elif fstat_chc>=0.34:
-                        if random.randint(1,100) <= 9:
-                            jt_mod *= 2
-                            if talent_index[8]==1 and jt_ct <2:
-                                jt_ct += 1
-                            elif talent_index[8]==0:
-                                cd_jt = 0  
-                    elif fstat_chc>=0.25:
-                        if random.randint(1,100) <= 6:
-                            jt_mod *= 2
-                            if talent_index[8]==1 and jt_ct <2:
-                                jt_ct += 1
-                            elif talent_index[8]==0:
-                                cd_jt = 0  
-                    elif fstat_chc>=0.16:
-                        if random.randint(1,100) <= 3:
-                            jt_mod *= 2
-                            if talent_index[8]==1 and jt_ct <2:
-                                jt_ct += 1
-                            elif talent_index[8]==0:
-                                cd_jt = 0  
+                    #and double the damage of the next Justice Thump  
+                    passive_crit_thres = [0.5,0.42,0.34,0.25,0.16]  
+                    if fstat_chc<passive_crit_thres[-1]:
+                            crit_thres=0             
+                    else:
+                        for n in range(len(passive_crit_thres)):
+                            if fstat_chc>=passive_crit_thres[n]:
+                                crit_thres = 6-n
+                                break
+                    if random.randint(1,100) <= (crit_thres*3):
+                        jt_mod *=2
+                        if talent_index[8]==1 and jt_ct <2:
+                            jt_ct += 1
+                        elif talent_index[8]==0:
+                            cd_jt = 0   
                     #4th Glory Strike has X% additional crit chance            
                     if (fstat_chc+((gs_crit_ct==4)*(talent_index[10]*0.15)))>=(random.randint(1,100)/100):
                         dmg_gs = GS * (stat_chd+(js_bonus1 * talent_index[5] * 0.04))
@@ -316,68 +350,80 @@ def Sim_run(until):
                     cml_dmg += row['Damage']
             #Tallies GS damage and consume JS bonus damage
             if dmg_gs!=0:
+                if random.randint(1,100)<=min(eod_stack_gs*100,100) and echo_dur<=0:
+                    echo_stack+=1
                 #GS Talent Bonus
                 gs_mod *= 1 + (talent_index[1] * 0.05)
                 #JS Bonus, JS Crit Bonus, EQ Bonus, Verdict Bonus
                 gs_mod *= (1+(js_bonus1 * talent_index[5] * 0.04)) * (1+(js_bonus2 * talent_index[13] * 0.05))\
-                        * (1+((eq_dur>0) * talent_index[17] * 0.07)) * (1+((verdict_bonus==2)*talent_index[12]*0.12))
-                sim_dmg_gs.append(int(dmg_gs * gs_mod * (1+((reso_dur>0)*stat_reso*0.0007))))
+                        * (1+((eq_dur>0) * talent_index[17] * 0.07)) * (1+((verdict_bonus==2)*talent_index[12]*0.12))\
+                        * (1+((reso_dur>0)*stat_reso*0.0007)) * (1+((echo_dur>0)*eod_dmg_gs))\
+                        * (1+(eod_chn_gs * eod_chn_gs_dmg))
+                sim_dmg_gs.append(int(dmg_gs * gs_mod))
                 sim_dmg_all.append(sim_dmg_gs[-1])
                 #Record to pandas-excel
                 data_list.append({'Sim #': i+1, 'Time': sim_dur - duration, 'Skill': "GS", 'Damage': \
-                            dmg_gs * gs_mod * (1 + ((reso_dur > 0) * stat_reso * 0.0007)),\
-                                '15 Sec': cml_dmg,'ToR': tor_dur>0,'Inscription': reso_dur>0 })
-                gs_mod = 1
-                js_bonus1 = 0
-                js_bonus2 = 0
-                verdict_bonus = 0
+                                 dmg_gs * gs_mod * (1 + ((reso_dur > 0) * stat_reso * 0.0007))\
+                                    ,'15 Sec': cml_dmg,'ToR': tor_dur>0,'Inscription': reso_dur>0\
+                                    ,'Echo Active': echo_dur>0})
+                gs_mod,js_bonus1,js_bonus2,verdict_bonus = 1,0,0,0
+                eod_chn_gs = 0
             #Tallies JT damage and consume JS bonus damage
             if dmg_jt!=0:
+                if random.randint(1,100)<=min(eod_stack_jt*100,100) and echo_dur<=0:
+                    echo_stack+=1
                 #JS Bonus, JS Crit Bonus, EQ Bonus, Verdict Bonus
                 jt_mod *= (1+(js_bonus1 * talent_index[5] * 0.04)) * (1+(js_bonus2 * talent_index[13] * 0.05))\
-                        * (1+((eq_dur>0) * talent_index[17] * 0.07)) * (1+((verdict_bonus==2)*talent_index[12]*0.12))
-                sim_dmg_jt.append(int(dmg_jt * jt_mod * (1+((reso_dur>0)*stat_reso*0.0007))))
+                        * (1+((eq_dur>0) * talent_index[17] * 0.07)) * (1+((verdict_bonus==2)*talent_index[12]*0.12))\
+                        * (1+((reso_dur>0)*stat_reso*0.0007)) * (1+((echo_dur>0)*eod_dmg_jt))\
+                        * (1+(eod_chn_jt * eod_chn_jt_dmg))
+                sim_dmg_jt.append(int(dmg_jt * jt_mod))
                 sim_dmg_all.append(sim_dmg_jt[-1])
                 #Record to pandas-excel
                 data_list.append({'Sim #': i+1, 'Time': sim_dur - duration, 'Skill': "JT", 'Damage': \
                             dmg_jt * jt_mod * (1 + ((reso_dur > 0) * stat_reso * 0.0007)),\
-                                '15 Sec': cml_dmg,'ToR': tor_dur>0,'Inscription': reso_dur>0 })
-                jt_mod = 1
-                js_bonus1 = 0
-                js_bonus2 = 0
-                verdict_bonus = 0
+                                '15 Sec': cml_dmg,'ToR': tor_dur>0,'Inscription': reso_dur>0\
+                                ,'Echo Active': echo_dur>0})
+                jt_mod,js_bonus1,js_bonus2,verdict_bonus = 1,0,0,0
+                eod_chn_jt = 0
             #Tallies JS damage and consume JS bonus damage
             if dmg_js!=0:
+                if random.randint(1,100)<=min(eod_stack_js*100,100) and echo_dur<=0:
+                    echo_stack+=1
                 #JS Talent Bonus
                 js_mod *= 1 + (talent_index[15] * 0.04)
                 #JS Bonus, JS Crit Bonus, EQ Bonus, Verdict Bonus
                 js_mod *= (1+(js_bonus1 * talent_index[5] * 0.04)) * (1+(js_bonus2 * talent_index[13] * 0.05))\
-                        * (1+((eq_dur>0) * talent_index[17] * 0.07)) * (1+((verdict_bonus==2)*talent_index[12]*0.12))
-                sim_dmg_js.append(int(dmg_js * js_mod * (1+((reso_dur>0)*stat_reso*0.0007))))
+                        * (1+((eq_dur>0) * talent_index[17] * 0.07)) * (1+((verdict_bonus==2)*talent_index[12]*0.12))\
+                        * (1+((reso_dur>0)*stat_reso*0.0007)) * (1+((echo_dur>0)*eod_dmg_js))\
+                        * (1+(eod_chn_js * eod_chn_js_dmg))
+                sim_dmg_js.append(int(dmg_js * js_mod))
                 sim_dmg_all.append(sim_dmg_js[-1])
                 #Record to pandas-excel
                 data_list.append({'Sim #': i+1, 'Time': sim_dur - duration, 'Skill': "JS", 'Damage': \
                             dmg_js * js_mod * (1 + ((reso_dur > 0) * stat_reso * 0.0007)),\
-                                '15 Sec': cml_dmg,'ToR': tor_dur>0,'Inscription': reso_dur>0 })
-                js_mod = 1
-                js_bonus1 = 0
-                js_bonus2 = 0
-                verdict_bonus = 0
+                                '15 Sec': cml_dmg,'ToR': tor_dur>0,'Inscription': reso_dur>0\
+                                ,'Echo Active': echo_dur>0})
+                js_mod,js_bonus1,js_bonus2,verdict_bonus = 1,0,0,0
+                eod_chn_js = 0
             #Tallies EQ damage and consume JS bonus damage
             if dmg_eq!=0:
+                if random.randint(1,100)<=min(eod_stack_eq*100,100) and echo_dur<=0:
+                    echo_stack+=1
                 #JS Bonus, JS Crit Bonus, [Impossible to get EQ bonus w/o 87% CDR], Verdict Bonus
                 eq_mod *= (1+(js_bonus1 * talent_index[5] * 0.04)) * (1+(js_bonus2 * talent_index[13] * 0.05))\
-                        * (1+((verdict_bonus==2)*talent_index[12]*0.12))
-                sim_dmg_eq.append(int(dmg_eq * eq_mod * (1+((reso_dur>0)*stat_reso*0.0007))))
+                        * (1+((verdict_bonus==2)*talent_index[12]*0.12))\
+                        * (1+((reso_dur>0)*stat_reso*0.0007)) * (1+((echo_dur>0)*eod_dmg_eq))\
+                        * (1+(eod_chn_eq * eod_chn_eq_dmg))
+                sim_dmg_eq.append(int(dmg_eq * eq_mod))
                 sim_dmg_all.append(sim_dmg_eq[-1])
                 #Record to pandas-excel
                 data_list.append({'Sim #': i+1, 'Time': sim_dur - duration, 'Skill': "EQ", 'Damage': \
                             dmg_eq * eq_mod * (1 + ((reso_dur > 0) * stat_reso * 0.0007)),\
-                                '15 Sec': cml_dmg,'ToR': tor_dur>0,'Inscription': reso_dur>0 })
-                eq_mod = 1
-                js_bonus1 = 0
-                js_bonus2 = 0
-                verdict_bonus = 0
+                                '15 Sec': cml_dmg,'ToR': tor_dur>0,'Inscription': reso_dur>0\
+                                ,'Echo Active': echo_dur>0})
+                eq_mod,js_bonus1,js_bonus2,verdict_bonus = 1,0,0,0
+                eod_chn_eq = 0
             #Tallies AA damage
             if dmg_aa!=0:
                 #ToR stacking crit/haste buff
@@ -388,7 +434,8 @@ def Sim_run(until):
                 #Record to pandas-excel
                 data_list.append({'Sim #': i+1, 'Time': sim_dur - duration, 'Skill': "AA", 'Damage': \
                             dmg_aa * aa_mod * (1 + ((reso_dur > 0) * stat_reso * 0.0007)),\
-                                '15 Sec': cml_dmg,'ToR': tor_dur>0,'Inscription': reso_dur>0 })
+                                '15 Sec': cml_dmg,'ToR': tor_dur>0,'Inscription': reso_dur>0\
+                                ,'Echo Active': echo_dur>0})
                 aa_mod = 1   
             #Increments cooldowns and buffs
             duration -= increment 
@@ -402,11 +449,11 @@ def Sim_run(until):
             a_gcd -= increment
             eq_dur -= increment
             reso_dur -= increment
+            echo_dur -= increment
             cd_raid_buff -= increment
             raid_buff_dur -= increment
-            #Resets n-second damage. If the window was larger than 15 seconds
-            #It would be more efficient to drop last n damage instances, and add new damage instance
-            #instead of recalculating n-second window from scratch
+            #Resets n-second damage. Only checks against current sim for n-15 seconds.
+            #Program speed is O(N^2)
             cml_dmg = 0
 
         #Tracks total GS/JT/JS/EQ/AA damage from each sim
@@ -459,9 +506,38 @@ print("Avg. Sim Dmg: ",dmg_spread(sim_rec_dps,None,0.5,0.05,0.95))
 #Save results to Excel
 import pandas as pd
 print("\nExporting data to Excel...",end="\r")
-data_export = pd.DataFrame(columns=["Sim #", "Time", "Skill", "Damage","15 Sec Dmg","ToR","Inscript"])
-data_export = pd.DataFrame(sim_data_list)
-data_export.to_excel("Sim Data.xlsx", index=False)
-
+with pd.ExcelWriter("Sim Data.xlsx", engine='xlsxwriter') as writer:
+    data_export = pd.DataFrame(columns=["Sim #", "Time", "Skill", "Damage","15 Sec Dmg","ToR","Inscript"])
+    data_export = pd.DataFrame(sim_data_list)
+    data_export.to_excel(writer, index=False, sheet_name="Sim Data")
+    #Output Config Settings
+    data_export_2 = pd.DataFrame(columns=["Description", "Setting"])
+    data_export_2["Description"] = ["Attack","Crit Chance","Crit Damaage","Cooldown","Resonance"\
+                                    ,"Fight Duration","# of Iterations","Ext. Raid Buff?"\
+                                    ,"Start w/ Inscript?","SA: GS Damage","SA: JT Damage","SA: JS Damage"\
+                                    ,"SA: EQ Damage","SA: % GS Damage","SA: % JT Damage","SA: % JS Damage"\
+                                    ,"SA: % EQ Damage","Start w/ EOD Stacks","SA: % Stack GS","SA: % Stack JT"\
+                                    ,"SA: % Stack JS","SA: % Stack EQ","EoD ToR Attack","EoD ToR Attack %"]
+    data_export_2["Setting"] = (all_stats)
+    data_export_2.to_excel(writer, index=False, sheet_name="Config")
+    #Output Talent Settings
+    data_export_3 = pd.DataFrame(columns=["Talent", "Points"])
+    data_export_3["Talent"] = ["Glory Strike", "Justice Thump", "Critical Strike", "Power of Glory"
+                            ,"Judgement Strike", "Punishing Storm", "Earthquake Glory"
+                            ,"Justice Thump Charges", "Judgement Sword", "Glory Strike x3"
+                            ,"Judgement Sword Recharge","Glory Judgement", "Judgement Strike Dmg%"
+                            ,"Judgement Sword CHD", "Judgement Strike Crit", "Judgement Sword DOT"
+                            ,"Earthquake Dmg%", "Trial of Rage Raid", "Trial of Rage CDR"
+                            ,"Glory Judgement RNG", "Trial of Rage Stack"]
+    data_export_3["Points"] = talent_index[1:]
+    data_export_3.to_excel(writer, index=False, sheet_name="Talents")
+    #Output Combat Log
+    data_export_4 = pd.DataFrame(columns=["Sim #", "Time", "Event"])
+    sim_combat_log_time += [[row['Sim #'], row['Time']] for row in sim_data_list]
+    sim_combat_log_events += [' '.join([row['Skill'], "deals", str(int(row['Damage'])), "Damage."]) for row in sim_data_list]
+    data_export_4[['Sim #', 'Time']] = sim_combat_log_time
+    data_export_4['Event'] = sim_combat_log_events
+    data_export_4.sort_values(by=['Sim #', 'Time'], inplace=True)
+    data_export_4.to_excel(writer, index=False, sheet_name="Combat Log")
 print("Data Exported Successfully.")
 #input("Press any key to exit.")
