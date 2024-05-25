@@ -1,15 +1,8 @@
 # Tarisland
-Tarisland Paladin Spreadsheet found here: https://docs.google.com/spreadsheets/d/14vKUGiKxMA5A0mZxaB9TpaurQAhtFDvvU1SopLGmPcE/edit#gid=0
+Tarisland Paladin Spreadsheet found here: https://docs.google.com/spreadsheets/d/14vKUGiKxMA5A0mZxaB9TpaurQAhtFDvvU1SopLGmPcE/
     
 Currently has arbitrary raid buffs with 120 sec CD (can be toggled on/off)
     6 Players each providing: +32 ATK, +2% Crit chance, and +2% ATK buff
-    Can edit this within TSL_Pal()
-              if cd_raid_buff <= 0 and ext_raid_buff in [1,"Yes"]:
-                cd_raid_buff = 120  * (1-stat_cdr)
-                raid_buff_dur = 12
-                raid_atk = (63*6*0.5) + ((stat_atk * 0.04)*6*0.5)
-                raid_chc = (0.04*6*0.5)
+    Based on TBT, will adjust this to a 1x of each class raid comp (with 2x Bards.)
 
-Missing stacking Inscription Echos buff that converts to Echo of Destiny.
-Missing Special Aptitude lines. (Unsure of a clean way to allow user-input as there are 25+ SA lines.)
-    May just have User input total +dmg mods for each skill. TBD
+Special Aptitudes based on old March 18 CN Technical Beta. Will updated to TBT values.
