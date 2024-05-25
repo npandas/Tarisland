@@ -1,5 +1,6 @@
 import tkinter as tk
 from functools import partial
+from PIL import Image, ImageTk
 
 def main():
 	entries = [0]
@@ -17,7 +18,8 @@ def main():
 			root.destroy()
 			return
 		else:
-			talent_index = [int(i.get()) for i in entries[1:]]
+			talent_index = [0]
+			talent_index.extend([int(i.get()) for i in entries[1:]])
 
 		root.destroy()
 		return talent_index
@@ -25,8 +27,15 @@ def main():
 	# Create main window
 	root = tk.Tk()
 	root.title("Paladin - Justice Talents")
-	root.geometry("480x560+1400+200")
-	root.configure(bg="#ffffff")
+	root.geometry("800x600+1400+200")
+	
+	background_image = Image.open("bg.png")
+	background_photo = ImageTk.PhotoImage(background_image)
+	# Create a label to hold the background image
+	background_label = tk.Label(root, image=background_photo)
+	background_label.place(x=0, y=0, relwidth=1, relheight=1)
+	# Ensure the label stays behind all other widgets
+	background_label.lower()
 
 	def update_total():
 		total = sum(int(entry.get()) for entry in entries[1:])
@@ -53,9 +62,14 @@ def main():
 			tooltip.destroy()
 
 	#Create entry fields
-	def talent(t_name="name",defval=0,rowpos=1,colpos=1,max_pt=1,e="Tooltip requires update"):
+	def talent(t_image="name",defval=0,rowpos=1,colpos=1,max_pt=1,e="Tooltip requires update"):
+		#Declare sub-folder location for images
+		folderpath = "talent_images/"
+		#Loads image and resizes to fit
+		t_image_obj = ImageTk.PhotoImage(Image.open(folderpath+t_image).resize((40,40)))
+		
 		#Create entry user input for talents
-		entry = tk.Entry(root, width=6,bg=root["bg"])
+		entry = tk.Entry(root, width=6,bd=0,bg="light coral")
 		entry.insert(0, int(defval))
 		entry.grid(row = rowpos*2, column = (4*colpos)-1, sticky="nsew")
 		entries.append(entry)
@@ -73,9 +87,11 @@ def main():
 				entry.delete(0, tk.END)
 				entry.insert(0, str(current_value - 1))
 				update_total()
-
+		
 		# Create button to increment value
-		increment_button = tk.Button(root, text = t_name, command=partial(increment_value, entry), width=14,bg=root["bg"])
+		increment_button = tk.Button(root,image=t_image_obj,command=partial(increment_value, entry),bd=0,width=40,bg="#EB5B45")
+		increment_button.image = t_image_obj
+		increment_button.config(image=t_image_obj)
 		increment_button.grid(row=rowpos*2, column=(4*colpos)-2, sticky="nsew")
 		# Bind right-click event to decrement function
 		increment_button.bind("<Button-3>", lambda event: decrement_value())
@@ -90,56 +106,56 @@ def main():
 		root.grid_columnconfigure(0, minsize=20)
 		root.grid_columnconfigure(15, minsize=20)
 
-	talent("Glory\nStrike: ",1,1,2,3,\
+	talent("1.png",1,1,2,3,\
 		"Glory Strike's base damage is increased by 5/10/15%.\nFor the next 6 seconds, you gain 2/4/6% haste.")
-	talent("Justice\nThump Dmg%: ",1,1,3,3,\
+	talent("2.png",1,1,3,3,\
 		"Justice Thump's damage is increased by 6/12/18%.\nWhen enhanced, it is increased by 10/20/30% instead.")
-	talent("Critical\nStrike: ",2,2,1,3,\
+	talent("3.png",2,2,1,3,\
 		"Increase your Critical Strike chance by 1.5/3.0/4.5%")
-	talent("Power of\nGlory: ",3,2,2,3,\
+	talent("4.png",3,2,2,3,\
 		"You have a 33.3/66.6/100% chance to gain 1 level\nof Power of Glory when you consume a Glory Judgement.")
-	talent("Judgement\nStrike: ",3,2,3,3,\
+	talent("5.png",3,2,3,3,\
 		"Judgement Strike increases the damage and\ncritical strike damage of your next skill by 4/8/12%")
-	talent("Punishing\nStorm: ",0,3,1,3,\
+	talent("6.png",0,3,1,3,\
 		"Your Punishing Storm deals 5/10/15% more damage.")
-	talent("Earthquake\nGlory: ",3,3,2,3,\
+	talent("7.png",3,3,2,3,\
 		"After you cast Earthquake, you have a 33/66/100%\nto gain a Glory Judgement (prioritizes skills that are not already enhanced.)")
-	talent("Justice\nThump Charges: ",1,3,3,1,\
+	talent("8.png",1,3,3,1,\
 		"Justice Thump can now store 2 charges.\nWhen Glory Strike resets the cooldown of\nJustice Thump, it grants a charge instead.")
-	talent("Judgement\nSword: ",0,4,1,1,\
+	talent("9.png",0,4,1,1,\
 		"Replace Judgement Strike with Judgement Sword.")
-	talent("Glory\nStrike x3: ",1,4,2,3,\
+	talent("10.png",1,4,2,3,\
 		"Every 3rd Glory Strike has a 15/30/45%\nincreased Critical Strike Chance.")
-	talent("Judgement Sword\nRecharge: ",0,5,1,3,\
+	talent("11.png",0,5,1,3,\
 		"Judgement Sword has a 10/20/30%\nto regain a charge and increase the damage of the next\nJudgement Sword by 4/8/12%.")
-	talent("Glory\nJudgement: ",3,5,2,3,\
+	talent("12.png",3,5,2,3,\
 		"Consecutive Glory Judgements increases your next\nskill's Critical strike chance by 10/20/30%.\nOtherwise, your next skill deals 12/24/36% increased damage.")
-	talent("Judgement\nStrike Dmg%: ",2,5,3,2,\
+	talent("13.png",2,5,3,2,\
 		"Your Judgement Strike's Critical Strike chance is increased by 3/6%.\nWhen Judgement Strike critically hits, your next skill deals 5/10% more damage.")
-	talent("Judgement\nSword CHD: ",0,6,1,3,\
-		"You deal 15/30/45% increased critical damage to targets afflicted\nby Judgement Sword's damage-over-time effect.")
-	talent("Judgement\nStrike Crit: ",3,6,3,3,\
-		"Judgement Strike deals 4/8/12% more damage.\nIf Judgement Strike critically hits or gains Glory Judgement,\nthe cooldown is reduced by 1/2/3 seconds.")
-	talent("Judgement\nSword DOT: ",0,7,1,3,\
+	talent("14.png",0,6,1,3,\
+	 	"You deal 15/30/45% increased critical damage to targets afflicted\nby Judgement Sword's damage-over-time effect.")
+	talent("15.png",3,6,3,3,\
+	 	"Judgement Strike deals 4/8/12% more damage.\nIf Judgement Strike critically hits or gains Glory Judgement,\nthe cooldown is reduced by 1/2/3 seconds.")
+	talent("16.png",0,7,1,3,\
 		"Judgement Sword deals 10/20/30% more damage immediately,\nand the damage-over-time is increased by 30/60/90%.")
-	talent("Earthquake\nDmg%: ",2,7,2,2,\
+	talent("17.png",2,7,2,2,\
 		"Your Earthquake deals 10/20% more damage,\nand you deal 7/14% increased damage to affected targets for 4 seconds.")
-	talent("Trial of Rage\nRaid: ",0,8,2,2,\
+	talent("18.png ",0,8,2,2,\
 		"Your party is affected by Trial of Rage with 25/50% effect.")
-	talent("Trial of Rage\nCDR: ",2,8,3,2,\
+	talent("19.png ",2,8,3,2,\
 		"Trial of Rage lasts 1.5/3 seconds longer\nand its cooldown is reduced by 15/30 seconds.")
-	talent("Glory\nJudgement RNG ",3,9,1,3,\
+	talent("20.png",3,9,1,3,\
 		"Whenever you gain a Glory Judgement from Power of Glory,\nthere is a 3.33/6.66/10% to gain another Glory Judgement.")
-	talent("Trial of Rage\nStack ",2,9,3,2,\
+	talent("21.png",2,9,3,2,\
 		"While Trial of Rage is active, you gain 1.25/2.5%\ncritical strike chance and haste\nwhenever you deal damage.")
 
 	#Create total label
-	total_label = tk.Label(root, text="Total Points: 0", bg=root["bg"])
-	total_label.grid(row=24, column=5, columnspan=4)
+	total_label = tk.Label(root, text="Total Points: 0",bd=0,bg="light coral")
+	total_label.grid(row=24, column=1, columnspan=16)
 
 	# Create submit button
-	submit_button = tk.Button(root, text="Submit", command=submit_values, width = 60, bg=root["bg"], fg="#000000")
-	submit_button.grid(row=26, column=0, columnspan=14)
+	submit_button = tk.Button(root,text="Submit",command=submit_values,width=40,bd=0,bg="#EB5B45")
+	submit_button.grid(row=26, column=1, columnspan=16)
 	# Load default talent points total (32)
 	update_total()
 	root.mainloop()
@@ -148,5 +164,4 @@ def main():
 
 #Runs script when executed directly.
 if __name__ == "__main__":
-	main()
-	print(talent_index)
+	print(main())
