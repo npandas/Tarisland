@@ -161,3 +161,14 @@ def main():
 #Runs script when executed directly.
 if __name__ == "__main__":
 	print(main())
+	import pandas as pd
+	print("\nExporting data to Excel...",end="\r")
+	with pd.ExcelWriter("Talent Points.xlsx", engine='xlsxwriter') as writer:
+		data_export_3 = pd.DataFrame(columns=["Talent", "Points"])
+		data_export_3["Talent"] = ["Glory Strike+","Justice Thump+","Judgement Mastery","Echo"\
+								,"Enraged","Punitive Storm+","Eternal Glory","Power of Justice"\
+								,"Judgement Sword","Dogma","Razor-Shape","Double Knight","Frenzy Strike"\
+								,"Execution","Judgement Strike+","Judgement Sword+","Shatterin Slam+"\
+								,"Field Rage","Trial of Rage","Knight's Glory","Expedition"]
+		data_export_3["Points"] = talent_index[1:]
+		data_export_3.to_excel(writer, index=False, sheet_name="Talents")
